@@ -1,7 +1,10 @@
 
 % fileID = fopen('big-input.txt','r');
-fileID = fopen('small-input.txt','r');
-conns = fscanf(fileID, '%d %d\n', [2 inf])';
+% fileID = fopen('small-input.txt','r');
+% conns = fscanf(fileID, '%d %d\n', [2 inf])';
+
+conns = load('big-input.txt');
+
 N = max(max(conns));
 
 M = zeros(N);
