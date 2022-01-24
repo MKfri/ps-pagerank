@@ -14,20 +14,22 @@ typedef struct __CooEntry {
 
 typedef struct __ArrayListCooEntry {
 	CooEntry *arr;
-	long elements;
-	long size;
+	unsigned int elements;
+	unsigned int size;
 } ArrayListCooEntry;
 
 
 
-extern int cooEntryCompare(const void *a, const void *b);
+int cooEntryCompare(const void *a, const void *b);
 
-extern ArrayListCooEntry* initArrayListCooEntry(int initialSize);
+ArrayListCooEntry* initArrayListCooEntry(int initialSize);
 
-extern void freeArrayListCooEntry(ArrayListCooEntry *list);
+void freeArrayListCooEntry(ArrayListCooEntry *list);
 
-extern void appendToArrayListCooEntry(ArrayListCooEntry *list, int i, int j, double value);
+void appendToArrayListCooEntry(ArrayListCooEntry *list, int i, int j, double value);
 
-extern void sortArrayListCooEntry(ArrayListCooEntry *list);
+void sortArrayListCooEntry(ArrayListCooEntry *list);
+
+int isSortedArrayListCooEntry(ArrayListCooEntry *list);
 
 #endif

@@ -48,9 +48,6 @@ int main(int argc, char **argv) {
 	double start = omp_get_wtime();
 
 	FILE *data_file;
-
-	//data_file = fopen("big-input.txt", "r");
-	//data_file = fopen("../matlab-reference-implementation/data/web-Google.txt", "r");
 	data_file = fopen(argv[1], "r");
 
 
@@ -110,7 +107,7 @@ int main(int argc, char **argv) {
 		L[listArr[k]]++;
 	}
 
-	double lEnd  = omp_get_wtime();
+	double lEnd = omp_get_wtime();
 	
 
 
@@ -124,7 +121,7 @@ int main(int argc, char **argv) {
 		appendToArrayListCooEntry(listCoo, to, from, val);
 	}
 
-	double cooEnd  = omp_get_wtime();
+	double cooEnd = omp_get_wtime();
 
 	// Free(L); razen ce ga bi rabli na koncu za verifikacijo
 	free(L);
@@ -134,16 +131,23 @@ int main(int argc, char **argv) {
 	freeArrayListInt(listInt);
 
 
-	// Sort da lahko pole enostavno pretvorimo v CSR format
-	// Problem: precej pocasno
-	// -> Mogoce paraleliziramo sort?
-	sortArrayListCooEntry(listCoo);
+	// Najprej preverimo ce je sortiranje potrebno
+	// Quicksort ima casovno zahtevnost O(n^2) za ze sortirane sezname
+	if (!isSortedArrayListCooEntry(listCoo)) {
+		// Sort da lahko pole enostavno pretvorimo v CSR format
+		// Problem: precej pocasno
+		// -> Mogoce paraleliziramo sort?
+		//printf("Sorting\n");
+		sortArrayListCooEntry(listCoo);
+	}
+	//printf("Is sorted??? %d\n", isSortedArrayListCooEntry(listCoo));
 
-	double sortEnd  = omp_get_wtime();
+
+	double sortEnd = omp_get_wtime();
 
 	MatrixCsr *csrMatrix = cooToCsr(listCoo, steviloVozlisc);
 
-	double csrEnd  = omp_get_wtime();
+	double csrEnd = omp_get_wtime();
 
 	// Free(listCoo)
 	freeArrayListCooEntry(listCoo);
@@ -198,7 +202,7 @@ int main(int argc, char **argv) {
 	freeMatrixCsr(csrMatrix);
 
 
-	double calculationEnd  = omp_get_wtime();
+	double calculationEnd = omp_get_wtime();
 
 	printf("Read: %.4f\n", readEnd - start);
 	printf("Sort: %.4f\n", sortEnd - cooEnd);

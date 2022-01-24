@@ -1,4 +1,6 @@
 
+#include <limits.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include "array-list-coo-entry.h"
 
@@ -17,8 +19,8 @@ int cooEntryCompare(const void *a, const void *b) {
 
 ArrayListCooEntry* initArrayListCooEntry(int initialSize) {
 	ArrayListCooEntry *list = (ArrayListCooEntry*) malloc(sizeof(ArrayListCooEntry));
-	list->size = (long) initialSize;
-	list->elements = 0L;
+	list->size = (unsigned int) initialSize;
+	list->elements = 0u;
 	list->arr = (CooEntry*) malloc(sizeof(CooEntry) * initialSize);
 	return list;
 }
@@ -30,7 +32,17 @@ void freeArrayListCooEntry(ArrayListCooEntry *list) {
 
 void appendToArrayListCooEntry(ArrayListCooEntry *list, int i, int j, double value) {
 	if (list->elements >= list->size) {
-		long newSize = 2L * list->size;
+		// Limit size to ~64 GB (double) or ~48 GB (float)
+		if (list->size == UINT_MAX) {
+			printf("[0x0513] Error, cannot extend array list of CooEntries, unsigned int overflow");
+			return;
+		}
+
+		unsigned int newSize = 2u * list->size;
+		if (newSize > UINT_MAX) {
+			newSize = UINT_MAX;
+		}
+
 		list->arr = (CooEntry*) reallocarray(list->arr, newSize, sizeof(CooEntry));
 		list->size = newSize;
 	}
@@ -44,6 +56,25 @@ void appendToArrayListCooEntry(ArrayListCooEntry *list, int i, int j, double val
 
 void sortArrayListCooEntry(ArrayListCooEntry *list) {
 	qsort(list->arr, list->elements, sizeof(CooEntry), cooEntryCompare);
+}
+
+int isSortedArrayListCooEntry(ArrayListCooEntry *list) {
+	CooEntry *entry = &(list->arr[0]);
+	int prevRow = entry->row;
+	int prevCol = entry->col;
+	int currRow, currCol;
+
+	for (int i = 1; i < list->elements ; i++) {
+		entry = &(list->arr[i]);
+		currRow = entry->row;
+		currCol = entry->col;
+		if ((prevRow >= currRow) && (prevCol > currCol)) {
+			return 0;
+		}
+		prevRow = currRow;
+		prevCol = currCol;
+	}
+	return 1;
 }
 
 

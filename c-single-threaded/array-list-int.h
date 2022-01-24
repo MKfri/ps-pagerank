@@ -4,8 +4,8 @@
 
 typedef struct __ArrayListInt {
 	int *arr;
-	long elements;
-	long size;
+	unsigned int elements;
+	unsigned int size;
 } ArrayListInt;
 
 
