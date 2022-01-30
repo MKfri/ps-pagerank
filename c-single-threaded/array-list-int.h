@@ -9,10 +9,10 @@ typedef struct __ArrayListInt {
 } ArrayListInt;
 
 
-extern ArrayListInt* initArrayListInt(int initialSize);
+ArrayListInt* initArrayListInt(int initialSize);
 
-extern void freeArrayListInt(ArrayListInt *list);
+void freeArrayListInt(ArrayListInt *list);
 
-extern void appendToArrayListInt(ArrayListInt *list, int newElement);
+void appendToArrayListInt(ArrayListInt *list, int newElement);
 
 #endif

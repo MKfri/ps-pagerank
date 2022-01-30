@@ -6,28 +6,26 @@
 #include <omp.h>
 
 #include "array-list-int.h"
-#include "array-list-coo-entry.h"
-#include "matrix-csr.h"
+#include "list-coo-entry.h"
+#include "matrix-formats.h"
 
 
-//#define _OUTPUT_PRINT
-//#define _OUTPUT_CHECK
+//#define OUTPUT_PRINT
+//#define OUTPUT_CHECK
+#define CONSIDER_SORT
 
 
 #define D 0.85
 #define EPSILON 1e-8
 
 
+/** Set at compile time (i.e. -DFORMAT_CSR) **/
+//#define FORMAT_CSR
+//#define FORMAT_COO
+//#define FORMAT_ELL
+//#define FORMAT_HYBRID
+//#define GET_NNZ_DISTRIBUTION
 
-double normOfVectorDifference(double *v1, double *v2, int steviloVozlisc) {
-	double sum = 0.0;
-	double tmp;
-	for (int i = 0; i < steviloVozlisc; i++) {
-		tmp = (v1[i] - v2[i]);
-		sum += tmp*tmp;
-	}
-	return sqrt(sum);
-}
 
 
 int main(int argc, char **argv) {
@@ -39,11 +37,6 @@ int main(int argc, char **argv) {
 	}
 	printf("Input file: `%s`\n", argv[1]);
 
-	ArrayListCooEntry *listCoo;
-	ArrayListInt      *listInt;
-
-	listInt = initArrayListInt(16);
-	listCoo = initArrayListCooEntry(16);
 
 	double start = omp_get_wtime();
 
@@ -68,6 +61,7 @@ int main(int argc, char **argv) {
 	 * stevilo vozlisc = max + 1
 	 */
 
+	ArrayListInt *listInt = initArrayListInt(4095);
 	int from, to;
 	int readCount = 1;
 	int maxVal = 0;
@@ -76,9 +70,7 @@ int main(int argc, char **argv) {
 		readCount = fscanf(data_file, "%d %d", &from, &to);
 
 		if (readCount == 2) {
-			// From
 			appendToArrayListInt(listInt, from);
-			// To
 			appendToArrayListInt(listInt, to);
 
 			if (from > maxVal) {
@@ -101,24 +93,35 @@ int main(int argc, char **argv) {
 	// L(k) => stevilo izhodnih povezav vozlisca k
 	int *L = (int*) calloc(steviloVozlisc, sizeof(int));
 	
-	long elementCount = listInt->elements;
+	unsigned int elementCount = listInt->elements;
 	int *listArr = listInt->arr;
-	for (long k = 0L; k < elementCount; k += 2L) {
+	for (unsigned int k = 0u; k < elementCount; k += 2u) {
 		L[listArr[k]]++;
 	}
 
 	double lEnd = omp_get_wtime();
-	
 
 
-	// Sestavljamo redko matriko v obliki COO
-	// 16 B na element v matriki
-	for (long k = 0L; k < elementCount; k += 2L) {
+	/* 
+	 * Sestavljamo redko matriko v obliki COO (16 B na element v matriki)
+	 *
+	 * Zakaj COO?
+	 * Ni garantirano, da je vhodna datoteka sortirana, 
+	 * format COO pa lahko imamo tudi v nesortirani obliki.
+	 * Za pretvorbo v CSR pa potrebujemo sortiran COO, 
+	 * Bolj tocno, sortiran kot: primarno -> narascajoce vrstice, sekundarno -> narascajoci stolpci
+	 * 
+	 * Zakaj tak format (in ne 3 arrayi)?
+	 * Za sortiranje z built-in QSORT potrebujemo nek kompakten format
+	 */
+	ListCooEntry *listCoo = initListCooEntry((listInt->elements) / 2);
+
+	for (unsigned int k = 0u; k < elementCount; k += 2u) {
 		int from = listArr[k];
 		int to = listArr[k+1];
 		double val = 1.0 / L[from];
 
-		appendToArrayListCooEntry(listCoo, to, from, val);
+		appendToListCooEntry(listCoo, to, from, val);
 	}
 
 	double cooEnd = omp_get_wtime();
@@ -131,26 +134,52 @@ int main(int argc, char **argv) {
 	freeArrayListInt(listInt);
 
 
+	int sortNeeded = 0;
+	int sortConsidered = 0;
+#ifdef CONSIDER_SORT
+	sortConsidered = 1;
+	// Sort da lahko potem enostavno pretvorimo v CSR format (oz. kak drug)
 	// Najprej preverimo ce je sortiranje potrebno
 	// Quicksort ima casovno zahtevnost O(n^2) za ze sortirane sezname
-	if (!isSortedArrayListCooEntry(listCoo)) {
-		// Sort da lahko pole enostavno pretvorimo v CSR format
-		// Problem: precej pocasno
-		// -> Mogoce paraleliziramo sort?
-		//printf("Sorting\n");
-		sortArrayListCooEntry(listCoo);
+	if (!isSortedListCooEntry(listCoo)) {
+		sortListCooEntry(listCoo);
+		sortNeeded = 1;
 	}
-	//printf("Is sorted??? %d\n", isSortedArrayListCooEntry(listCoo));
-
+#endif
 
 	double sortEnd = omp_get_wtime();
 
-	MatrixCsr *csrMatrix = cooToCsr(listCoo, steviloVozlisc);
 
-	double csrEnd = omp_get_wtime();
+#ifdef FORMAT_CSR
+	MatrixCsr *csrMatrix = compactCooToCsr(listCoo, steviloVozlisc);
+
+#elif defined FORMAT_COO
+	MatrixCoo *cooMatrix = compactCooToCoo(listCoo, steviloVozlisc);
+
+#elif defined FORMAT_ELL
+	MatrixEll *ellMatrix = compactCooToEll(listCoo, steviloVozlisc);
+
+#elif defined FORMAT_HYBRID
+	MatrixEll *ellMatrix = (MatrixEll*) malloc(sizeof(MatrixEll));
+	MatrixCoo *cooMatrix = (MatrixCoo*) malloc(sizeof(MatrixCoo));
+	compactCooToHybrid(listCoo, ellMatrix, cooMatrix, steviloVozlisc);
+
+#elif defined GET_NNZ_DISTRIBUTION
+	// Distribution of nonzero (NNZ) elements in rows
+	#warning Maybe fix allocation
+	int allocation = 1000000;
+	getRowDistribution(listCoo, steviloVozlisc, allocation);
+	exit(0);
+
+#else
+	#warning Format ni definiran, koda ne bo delovala
+
+#endif
+
+	double convEnd = omp_get_wtime();
 
 	// Free(listCoo)
-	freeArrayListCooEntry(listCoo);
+	freeListCooEntry(listCoo);
 
 	
 
@@ -170,19 +199,29 @@ int main(int argc, char **argv) {
 	int iterations = 0;
 
 	double *tmp;
-	double *csrValues = csrMatrix->values;
-	unsigned int *csrColumns = csrMatrix->columnIdx;
 
-	while (normOfVectorDifference(prevR, currR, steviloVozlisc) > EPSILON) {
+
+	// Do & while -> Lazje dodati OpenMP pragme
+	double norm;
+	double squaredSum;
+
+	do {
 		iterations++;
 
 		tmp = prevR;
 		prevR = currR;
 		currR = tmp;
 
-		// Zmnozimo matriko csrMatrix z vektorjem prevR in shranimo v currR
+		squaredSum = 0.0;
+		double tmp2;
+
+		// Zmnozimo matriko in vektor prevR ter shranimo v currR
+#ifdef FORMAT_CSR
+		double *csrValues = csrMatrix->values;
+		unsigned int *csrColumns = csrMatrix->columnIdx;
+
 		for (int i = 0; i < steviloVozlisc; i++) {
-			currR[i] = 0;
+			currR[i] = 0.0;
 
 			unsigned int endRowPtrIndex = csrMatrix->rowPtr[i+1];
 			for (unsigned int j = csrMatrix->rowPtr[i]; j < endRowPtrIndex; j++) {
@@ -192,28 +231,139 @@ int main(int argc, char **argv) {
 			currR[i] *= D;
 			currR[i] += oneMinusDOverN;
 		}
-	}
-	tmp = NULL;
-	csrValues = NULL;
-	csrColumns = NULL;
+
+
+#elif defined FORMAT_COO
+		double *cooValues = cooMatrix->values;
+		unsigned int *cooColumns = cooMatrix->columnIdx;
+		unsigned int *cooRows = cooMatrix->rowIdx;
+
+		for (int i = 0; i < steviloVozlisc; i++) {
+			currR[i] = oneMinusDOverN;
+		}
+
+		for (unsigned int i = 0u; i < cooMatrix->valuesLen; i++) {
+			currR[cooRows[i]] += D * cooValues[i] * prevR[cooColumns[i]];
+		}
+
+#elif defined FORMAT_ELL
+		int rows = ellMatrix->rows;
+		long columnsPerRow = (long) ellMatrix->columnsPerRow;
+		long effectiveIndex;
+		double current;
+		int column;
+
+		for (long i = 0L; i < steviloVozlisc; i++) {
+			currR[i] = 0.0;
+
+			for (long j = 0L; j < columnsPerRow; j++) {
+				effectiveIndex = j*rows + i;
+				column = ellMatrix->columnIdx[effectiveIndex];
+				if (column == rows) {
+					break;
+				}
+				currR[i] += ellMatrix->values[effectiveIndex] * prevR[column];
+			}
+
+			currR[i] *= D;
+			currR[i] += oneMinusDOverN;
+		}
+
+#elif defined FORMAT_HYBRID
+		// ELL part
+		int rows = ellMatrix->rows;
+		long columnsPerRow = (long) ellMatrix->columnsPerRow;
+		long effectiveIndex;
+		double current;
+		int column;
+
+		for (long i = 0L; i < steviloVozlisc; i++) {
+			currR[i] = 0.0;
+
+			for (long j = 0L; j < columnsPerRow; j++) {
+				effectiveIndex = j*rows + i;
+				column = ellMatrix->columnIdx[effectiveIndex];
+				if (column == rows) {
+					break;
+				}
+				currR[i] += ellMatrix->values[effectiveIndex] * prevR[column];
+			}
+
+			currR[i] *= D;
+			currR[i] += oneMinusDOverN;
+		}
+
+		// COO part
+		double *cooValues = cooMatrix->values;
+		unsigned int *cooColumns = cooMatrix->columnIdx;
+		unsigned int *cooRows = cooMatrix->rowIdx;
+
+		for (unsigned int i = 0u; i < cooMatrix->valuesLen; i++) {
+			currR[cooRows[i]] += D * cooValues[i] * prevR[cooColumns[i]];
+		}
+
+#endif
+
+		// Izracun norme
+		for (int i = 0; i < steviloVozlisc; i++) {
+			tmp2 = (prevR[i] - currR[i]);
+			squaredSum += tmp2*tmp2;
+		}
+		norm = sqrt(squaredSum);
+
+	} while (norm > EPSILON);
+	// Konec iteracije
+
 
 	// Free
 	free(prevR);
+	tmp = NULL;
+
+#ifdef FORMAT_CSR
 	freeMatrixCsr(csrMatrix);
+#elif defined FORMAT_COO
+	freeMatrixCoo(cooMatrix);
+#elif defined FORMAT_ELL
+	freeMatrixEll(ellMatrix);
+#elif defined FORMAT_HYBRID
+	freeMatrixCoo(cooMatrix);
+	freeMatrixEll(ellMatrix);
+#endif
 
 
 	double calculationEnd = omp_get_wtime();
 
-	printf("Read: %.4f\n", readEnd - start);
-	printf("Sort: %.4f\n", sortEnd - cooEnd);
-	printf("Prep: %.4f\n", csrEnd - readEnd);
-	printf("Calc: %.4f\n", calculationEnd - csrEnd);
-	printf("Full: %.4f (Read + Prep + Calc)\n", calculationEnd - start);
+	double read = readEnd - start;
+	double prep = sortEnd - readEnd;
+	double conv = convEnd - sortEnd;
+	double calc = calculationEnd - convEnd;
 
-	printf("Iterations: %d\n", iterations);
+	printf("\nRead: %.4f\n", read);
+	printf("Prep: %.4f\n", prep);
+	printf("Conv: %.4f\n", conv);
+	printf("Calc: %.4f\n\n", calc);
+
+	printf("Sequential:     %.4f (Read + Prep)\n", (read + prep));
+	printf("Parallelizable: %.4f (Conv + Calc)\n", (conv + calc));
+	printf("Total:          %.4f (Read + Prep + Conv + Calc)\n\n", (read + prep + conv + calc));
+
+	printf("Sorting considered? %d\n", sortConsidered);
+	printf("Sorting needed? %d\n", sortNeeded);
+	printf("Iterations: %d\n\n", iterations);
+
+	printf("%d, %d, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f, %.4f\n",
+				iterations,
+				(sortConsidered + sortNeeded),
+				read,
+				prep,
+				conv,
+				calc,
+				read + prep,
+				conv + calc,
+				read + prep + conv + calc);
 
 
-#ifdef _OUTPUT_PRINT
+#ifdef OUTPUT_PRINT
 	printf("currR = [");
 	for (int i = 0; i < steviloVozlisc; i++) {
 		if (i != 0) {
@@ -224,7 +374,7 @@ int main(int argc, char **argv) {
 	printf("]\n");
 #endif
 
-#ifdef _OUTPUT_CHECK
+#ifdef OUTPUT_CHECK
 	double endSum = 0.0;
 	double sqSum = 0.0;
 	for (int i = 0; i < steviloVozlisc; i++) {
@@ -240,4 +390,3 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
-

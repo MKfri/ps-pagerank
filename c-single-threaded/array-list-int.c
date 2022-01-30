@@ -38,24 +38,3 @@ void appendToArrayListInt(ArrayListInt *list, int newElement) {
 	list->elements++;
 }
 
-
-/*
-
-int main(int argc, char **argv) {
-
-	ArrayListInt *list = initArrayListInt(4);
-
-	for (int i = 419; i < 1037337337; i++) {
-		appendToArrayListInt(list, i);
-	}
-
-	printf("Size: %ld; Elements: %ld\n", list->size, list->elements);
-	for (long j = 0; j < list->elements; j++) {
-		if (j%1337L == 0L) {
-			//printf("[%d] => %d\n", j, list->arr[j]);
-		}
-	}
-
-	freeArrayListInt(list);
-	return 0;
-}*/
