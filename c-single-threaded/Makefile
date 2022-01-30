@@ -2,6 +2,10 @@
 .PHONY: all
 all: pagerank-csr pagerank-coo pagerank-ell pagerank-hybrid
 
+.PHONY: clean
+clean:
+	rm pagerank-csr pagerank-coo pagerank-ell pagerank-hybrid
+
 pagerank-csr: pagerank.c list-coo-entry.c array-list-int.c matrix-formats.c
 	gcc pagerank.c \
 		list-coo-entry.c \

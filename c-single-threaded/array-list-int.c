@@ -31,7 +31,8 @@ void appendToArrayListInt(ArrayListInt *list, int newElement) {
 			newSize = UINT_MAX;
 		}
 
-		list->arr = (int*) reallocarray(list->arr, newSize, sizeof(int));
+		//list->arr = (int*) reallocarray(list->arr, newSize, sizeof(int));
+		list->arr = (int*) realloc(list->arr, newSize * sizeof(int));
 		list->size = newSize;
 	}
 	list->arr[list->elements] = newElement;
