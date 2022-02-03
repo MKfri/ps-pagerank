@@ -5,11 +5,12 @@ Cilj: Učinkovita paralelna implementacija algoritma pagerank. [1]
 ## TODO list / Roadmap
 * [x] Referenčna implementacija za pomoč pri razvoju pravilnega single threaded C programa
 * [x] Single threaded C program
-* [ ] Preizkus formatov ELL in COO
-* [ ] Paralelizacija single threaded programa, najlažje verjetno OpenMP, paralelizira se vse kar se da (branje je bottleneck, ne bomo všteli v skupen čas izvajanja)
-* [ ] OpenCL implementacija s CSR, COO, ELL
+* [x] Implementacija formatov ELL in COO ter hibridnega formata (ELL + COO)
+* [x] Paralelizacija single threaded programa, najlažje verjetno OpenMP, paralelizira se vse kar se da. (Branje in pretvorba v kompakten coo format sta sekvenčna, pretvorba potem v specifičen format in sam izračun pa sta paralelna)
+* [ ] OpenCL implementacija s CSR, COO, HYBRID
 * [ ] Double vs single precision na GPU
-* [ ] OpenCL + MPI na Arnesovi gruči (24x Nvidia V100), treba se pozanimat kako usposobit MPI
+* [ ] OpenCL na dveh grafičnih karticah. (Na arnesu so na vsakem od vozlišč wn201-224 po 2 Nvidia V100) 
+* [ ] Če bo čas mogoče: OpenCL + MPI na Arnesovi gruči (24x Nvidia V100), treba se pozanimat kako usposobit MPI
 * [ ] Izbira podatkovnih zbirk za benchmarking
 * [ ] Benchmarking
 * [ ] Predstavitev s povzetki rezultatov: grafi, povprečje + std. odklon, ...
@@ -50,7 +51,11 @@ Vrstica:  0, 3, 4, 4, 6, 8, 8
 ## Testne datoteke
 V zbirki SuiteSparse Matrix Collection (predhodno znana kot University of Florida Sparse Matrix Collection) najdemo primerke sparse matrik, pridobljenih z webcrawlanjem resničnih podatkov na neki podmnožici celotnega interneta. Ti podatki so veliko bolj realen preizkus implementacije algoritma pagerank, kot bi bili kakšni naključno generirani podatki ter so že v željenem formatu (Matrix market).
 
-Moramo pa se potruditi, da izberemo primerne podatke, ki bodo vsaj približno enakomerno razporejeni po velikosti, glede na število neničelnih elementov. Izbiramo med tistimi, ki jih najde iskalni niz 'web' in so tipa 'directed graph'. Predlagam naslednje podatkovne sete, da vidimo kaj zmore naša implementacija: 
+Povezava do te zbirke je [2]. Ker se včasih prenos ne začne, je alternativna povezava [3], na kateri je bila zbirka originalno dostopna. Matirke, ki jih uporabljamo so dostopne na obeh povezavah.
+
+Moramo pa se potruditi, da izberemo primerne podatke, ki bodo vsaj približno enakomerno razporejeni po velikosti, glede na število neničelnih elementov. Izbiramo med tistimi, ki jih najde iskalni niz 'web' in so tipa 'directed graph'. Predlagam naslednje podatkovne sete, da vidimo kaj zmore naša implementacija:
+
+Opomba: Po nekaj testiranja sem ugotovil, da je že pri primeru 4 čas branja iz datoteke (velika je 4.7GB) zelo velik, ~1 minuto na mojem računalniku. Zato predlagam, da benchmarkamo v glavnem z zbirkami 1,2,3 in 4, ter uporabimo 5,6,7 mogoče le za kakšen specifičen test.
 
 1. [Google example](https://sparse.tamu.edu/SNAP/web-Google)
     * Rows & cols: 916,428
@@ -87,11 +92,22 @@ Moramo pa se potruditi, da izberemo primerne podatke, ki bodo vsaj približno en
 
 [2] The SuiteSparse Matrix Collection (https://sparse.tamu.edu/)
 
-[3] ELL format (https://www.lanl.gov/Caesar/node223.html)
+[3] UF Sparse Matrix Collection, sorted by id (https://www.cise.ufl.edu/research/sparse/matrices/list_by_id.html)
 
-[4] Sparse Matrix-Vector Multiplication and Matrix Formats (https://www.it.uu.se/education/phd_studies/phd_courses/pasc/lecture-1)
 
-[5] How naive is naive SpMV on the GPU? (https://people.mpi-inf.mpg.de/~rzayer/pappe/HowNaiveIsNaiveSpmvOnTheGpu.pdf)
+## Ostala literatura
 
-[6] The API reference guide for cuSPARSE, the CUDA sparse matrix library (https://docs.nvidia.com/cuda/cusparse/index.html)
+[i] Sparse Matrix Data Structures for High Performance Computing (https://faculty.cc.gatech.edu/~echow/ipcc/hpc-course/sparsemat.pdf)
+
+[ii] Sparse Matrix-Vector Multiplication and Matrix Formats (https://www.it.uu.se/education/phd_studies/phd_courses/pasc/lecture-1)
+
+[iii] How naive is naive SpMV on the GPU? (https://people.mpi-inf.mpg.de/~rzayer/pappe/HowNaiveIsNaiveSpmvOnTheGpu.pdf)
+
+[iv] The API reference guide for cuSPARSE, the CUDA sparse matrix library (https://docs.nvidia.com/cuda/cusparse/index.html)
+
+[v] Characterizing Dataset Dependence for Sparse Matrix-Vector Multiplication on GPUs (https://www.cs.colostate.edu/~pouchet/doc/ppaa-article.15.pdf)
+
+[vi] Performance optimization using partitioned SpMV on GPUs and multicore CPUs (https://www.researchgate.net/figure/The-optimization-workflow-for-SpMV-using-COO-CSR-and-ELL-Algorithm-1-Performance_fig1_280970750)
+
+[vii] Sparse matrix partitioning for optimizing SpMV on CPU-GPU heterogeneous platforms (https://journals.sagepub.com/doi/pdf/10.1177/1094342019886628)
 
