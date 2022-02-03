@@ -11,12 +11,13 @@
 
 
 //#define OUTPUT_PRINT
-#define OUTPUT_CHECK
+//#define OUTPUT_CHECK
 #define CONSIDER_SORT
 
 
 #define D 0.85
-#define EPSILON 1e-8
+#define EPSILON 1e-8 // Precision
+#define EPSILON_SQUARED EPSILON*EPSILON
 
 
 /** Set at compile time (i.e. -DFORMAT_CSR) **/
@@ -201,100 +202,206 @@ int main(int argc, char **argv) {
 	double norm;
 	double squaredSum;
 
-	for (int i = 0; i < steviloVozlisc; i++) {
-		currR[i] = oneOverN;
-	}
+/* TODO, neka numericna napaka se prikrade, ne vem zakaj
+#if defined (FORMAT_COO) || defined(FORMAT_HYBRID)
+	// Na tak nacin ne bo potrebe po 2x: #pragma omp atomic
+	int maxThreads = omp_get_max_threads();
+	unsigned int *threadBoundaries = (unsigned int*) calloc(maxThreads + 1, sizeof(unsigned int));
+	threadBoundaries[maxThreads] = cooMatrix->valuesLen;
+#endif*/
 
-	do {
-		iterations++;
 
-		tmp = prevR;
-		prevR = currR;
-		currR = tmp;
+	#pragma omp parallel
+	{
 
-		squaredSum = 0.0;
-		double tmp2;
+/* TODO, neka numericna napaka se prikrade, ne vem zakaj
+#if defined (FORMAT_COO) || defined(FORMAT_HYBRID)
+		double *cooValues = cooMatrix->values;
+		unsigned int *cooColumns = cooMatrix->columnIdx;
+		unsigned int *cooRows = cooMatrix->rowIdx;
 
-		// Zmnozimo matriko in vektor prevR ter shranimo v currR
-#if defined (FORMAT_CSR)
-		double *csrValues = csrMatrix->values;
-		unsigned int *csrColumns = csrMatrix->columnIdx;
+		double countPerThread = ((double) cooMatrix->valuesLen) / omp_get_num_threads();
+		int threadIndex = omp_get_thread_num();
+		unsigned int start = ceil(countPerThread * threadIndex);
 
-		for (int i = 0; i < steviloVozlisc; i++) {
-			currR[i] = 0.0;
+		int currRow = cooMatrix->rowIdx[start];
 
-			unsigned int endRowPtrIndex = csrMatrix->rowPtr[i+1];
-			for (unsigned int j = csrMatrix->rowPtr[i]; j < endRowPtrIndex; j++) {
-				currR[i] = currR[i] + csrValues[j] * prevR[csrColumns[j]];
+		unsigned int realStart = start;
+		if (start > 0u) {
+			while (cooMatrix->rowIdx[realStart] == currRow) {
+				realStart--;
 			}
-			currR[i] *= D;
-			currR[i] += oneMinusDOverN;
+			realStart++;
 		}
+		threadBoundaries[threadIndex] = realStart;
+
+		#pragma omp barrier // Dodano za debug
+		printf("I am %d; start = %d, end = %d\n", threadIndex, threadBoundaries[threadIndex], threadBoundaries[threadIndex+1]);
+		if (threadIndex > 0) {
+			printf("I am %d; row-1 = %d, row0 = %d\n", threadIndex, 
+					cooMatrix->rowIdx[threadBoundaries[threadIndex]-1], 
+					cooMatrix->rowIdx[threadBoundaries[threadIndex]]);
+					//threadBoundaries[threadIndex+1]);
+		}
+
+#endif*/
+
+		#pragma omp for
+		for (int i = 0; i < steviloVozlisc; i++) {
+			currR[i] = oneOverN;
+		}
+		// Implicitni barrier sinhronizira tudi vsebino seznama threadBoundaries
+
+
+#if defined (FORMAT_COO) || defined (FORMAT_HYBRID)
+		double nOverP = ((double) cooMatrix->valuesLen) / omp_get_num_threads();
+		int threadIndex = omp_get_thread_num();
+		unsigned int start = ceil(nOverP * threadIndex);
+		unsigned int end = ceil(nOverP * (threadIndex + 1));
+
+		double *cooValues = cooMatrix->values;
+		unsigned int *cooColumns = cooMatrix->columnIdx;
+		unsigned int *cooRows = cooMatrix->rowIdx;
+		
+		//printf("N = %d, P = %d\n", cooMatrix->valuesLen, omp_get_num_threads());
+		//printf("I am %d; start = %d, end = %d\n", threadIndex, start, end);
+#endif
+
+
+		do {
+			#pragma omp single
+			{
+				iterations++;
+
+				tmp = prevR;
+				prevR = currR;
+				currR = tmp;
+			}
+
+			squaredSum = 0.0;
+			double tmp2;
+
+			// Zmnozimo matriko in vektor prevR ter shranimo v currR
+#ifdef FORMAT_CSR
+			double *csrValues = csrMatrix->values;
+			unsigned int *csrColumns = csrMatrix->columnIdx;
+			
+			#pragma omp for schedule(guided,1024)
+			for (int i = 0; i < steviloVozlisc; i++) {
+				currR[i] = 0.0;
+
+				unsigned int endRowPtrIndex = csrMatrix->rowPtr[i+1];
+				for (unsigned int j = csrMatrix->rowPtr[i]; j < endRowPtrIndex; j++) {
+					currR[i] = currR[i] + csrValues[j] * prevR[csrColumns[j]];
+				}
+
+				currR[i] *= D;
+				currR[i] += oneMinusDOverN;
+			}
 #endif
 
 #if defined (FORMAT_ELL) || (FORMAT_HYBRID)
-		// ELL part, for pure ELL or for HYBRID
-		int rows = ellMatrix->rows;
-		long columnsPerRow = (long) ellMatrix->columnsPerRow;
-		long effectiveIndex;
-		double current;
-		int column;
+			// ELL part, for pure ELL or for HYBRID
+			int rows = ellMatrix->rows;
+			long columnsPerRow = (long) ellMatrix->columnsPerRow;
+			long effectiveIndex;
+			double current;
+			int column;
 
-		for (long i = 0L; i < steviloVozlisc; i++) {
-			currR[i] = 0.0;
+			#pragma omp for
+			for (long i = 0L; i < steviloVozlisc; i++) {
+				currR[i] = 0.0;
 
-			for (long j = 0L; j < columnsPerRow; j++) {
-				
+				for (long j = 0L; j < columnsPerRow; j++) {
+					
 	#ifdef ELL_CPU_OPTIMIZE
-				effectiveIndex = i*columnsPerRow + j;
+					effectiveIndex = i*columnsPerRow + j;
 	#else	// za GPU
-				effectiveIndex = j*rows + i;
+					effectiveIndex = j*rows + i;
 	#endif
-	
-				column = ellMatrix->columnIdx[effectiveIndex];
-				if (column == 0u) {
-					break;
-				}
-				currR[i] += ellMatrix->values[effectiveIndex] * prevR[column-1u];
-			}
 
-			currR[i] *= D;
-			currR[i] += oneMinusDOverN;
-		}
+					column = ellMatrix->columnIdx[effectiveIndex];
+					if (column == 0u) {
+						break;
+					}
+					currR[i] += ellMatrix->values[effectiveIndex] * prevR[column-1u];
+				}
+
+				currR[i] *= D;
+				currR[i] += oneMinusDOverN;
+			}
 #endif
 
 #if defined (FORMAT_COO)
-		double *cooValues = cooMatrix->values;
-		unsigned int *cooColumns = cooMatrix->columnIdx;
-		unsigned int *cooRows = cooMatrix->rowIdx;
+			#pragma omp for
+			for (int i = 0; i < steviloVozlisc; i++) {
+				currR[i] = oneMinusDOverN;
+			}
+#endif
+#if defined (FORMAT_COO) || (FORMAT_HYBRID)
+/* TODO, neka numericna napaka se prikrade, ne vem zakaj
+			unsigned int myStart = threadBoundaries[threadIndex];
+			unsigned int myEnd = threadBoundaries[threadIndex+1];
 
-		for (int i = 0; i < steviloVozlisc; i++) {
-			currR[i] = oneMinusDOverN;
-		}
-		for (unsigned int i = 0u; i < cooMatrix->valuesLen; i++) {
-			currR[cooRows[i]] += D * cooValues[i] * prevR[cooColumns[i]];
-		}
+			unsigned int currentRow = cooRows[myStart];
+			double accumulator = D * cooValues[myStart] * prevR[cooColumns[myStart]];
 
-#elif defined (FORMAT_HYBRID)
-		// COO part of HYBRID
-		double *cooValues = cooMatrix->values;
-		unsigned int *cooColumns = cooMatrix->columnIdx;
-		unsigned int *cooRows = cooMatrix->rowIdx;
+			for (unsigned int i = myStart+1u; i < myEnd; i++) {
+				unsigned int thisRow = cooRows[i];
+				if (thisRow > currentRow) {
+					//printf("I=(%d), R=(%d) Accumulator [%d] = %.8f\n", iterations, currentRow, threadIndex, accumulator);
+					currR[currentRow] += accumulator;
+					accumulator = 0.0;
+					currentRow = thisRow;
+				}
+				accumulator += D * cooValues[i] * prevR[cooColumns[i]];
+			}
+			#pragma omp barrier
+*/
 
-		for (unsigned int i = 0u; i < cooMatrix->valuesLen; i++) {
-			currR[cooRows[i]] += D * cooValues[i] * prevR[cooColumns[i]];
-		}
+			// This offers a less impressive speedup
+			/*#pragma omp for
+			for (unsigned int i = 0u; i < cooMatrix->valuesLen; i++) {
+				#pragma atomic
+				currR[cooRows[i]] += D * cooValues[i] * prevR[cooColumns[i]];
+			}*/
+			
+			unsigned int currentRow = cooRows[start];
+			double accumulator = D * cooValues[start] * prevR[cooColumns[start]];
+
+			// To izvede vsaka nit s svojimi indeksi
+			// Prvo in zadnjo vrstico moramo prišteti z atomic
+			int isFirstRowForThisThread = 1;
+			for (unsigned int i = start+1u; i < end; i++) {
+				unsigned int thisRow = cooRows[i];
+				if (thisRow > currentRow) {
+					if (isFirstRowForThisThread) {
+						isFirstRowForThisThread = 0;
+						#pragma omp atomic
+						currR[currentRow] += accumulator;
+					} else {
+						currR[currentRow] += accumulator;
+					}
+					accumulator = 0.0;
+					currentRow = thisRow;
+				}
+				accumulator += D * cooValues[i] * prevR[cooColumns[i]];
+			}
+			#pragma omp atomic
+			currR[currentRow] += accumulator;
+
+			#pragma omp barrier
 #endif
 
-		// Izracun norme
-		for (int i = 0; i < steviloVozlisc; i++) {
-			tmp2 = (prevR[i] - currR[i]);
-			squaredSum += tmp2*tmp2;
-		}
-		norm = sqrt(squaredSum);
-
-	} while (norm > EPSILON);
-	// Konec iteracije
+			// Izracun norme
+			#pragma omp for reduction(+:squaredSum)
+			for (int i = 0; i < steviloVozlisc; i++) {
+				tmp2 = (prevR[i] - currR[i]);
+				squaredSum += tmp2*tmp2;
+			}
+		} while (squaredSum > EPSILON_SQUARED);
+		// Konec iteracije
+	}
 
 
 	// Free
@@ -363,8 +470,9 @@ int main(int argc, char **argv) {
 		endSum += currR[i];
 		sqSum += currR[i]*currR[i];
 	}
-	printf("Sum  %.8f\n", endSum);
-	printf("Norm %.8f\n", sqrt(sqSum));
+	printf("Sum   %.15f\n", endSum);
+	printf("SqSum %.15f\n", sqSum);
+	printf("Norm  %.15f\n", sqrt(sqSum));
 #endif
 
 

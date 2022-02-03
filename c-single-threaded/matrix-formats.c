@@ -69,7 +69,10 @@ MatrixCoo* compactCooToCoo(ListCooEntry *listCoo, int rowCount) {
 
 
 // Useless za matrike kot jih imamo, se posebej za CPU
-// Prirejeno bolj za GPU (matrika je 1D vektor, ki gre po stolpcih)
+// 2D matrika je shranjena kot 1D vektor
+// 2 razlicna pristopa / optimizaciji
+// CPU -> Matrika je shranjena po vrsticah
+// GPU -> po stolpcih
 MatrixEll* compactCooToEll(ListCooEntry *listCoo, int rowCount) {
 	unsigned int elementCount = listCoo->elements;
 	CooEntry *listArr = listCoo->arr;
@@ -107,8 +110,9 @@ MatrixEll* compactCooToEll(ListCooEntry *listCoo, int rowCount) {
 	ell->columnsPerRow = maxElements;
 	ell->rows = rowCount;
 
-	double *ellValues = (double*) malloc(sizeof(double) * ((long) maxElements * (long) rowCount));
-	unsigned int *ellColIdx = (unsigned int*) malloc(sizeof(unsigned int) * ((long) maxElements * (long) rowCount));
+	long allocationSize = (long) maxElements * (long) rowCount;
+	double *ellValues = (double*) calloc(allocationSize, sizeof(double));
+	unsigned int *ellColIdx = (unsigned int*) calloc(allocationSize, sizeof(unsigned int));
 
 
 	if (ellValues == NULL || ellColIdx == NULL) {
@@ -126,20 +130,21 @@ MatrixEll* compactCooToEll(ListCooEntry *listCoo, int rowCount) {
 		row = (long) e.row;
 
 		if (row > rowIndex) {
-			// zafilamo vse lukne do tu
-			for (long r = rowIndex; r < row; r++) {
-				for (long col = colIndex; col < maxElements; col++) {
-					ellValues[rowCount*col + r] = 0.0;
-					ellColIdx[rowCount*col + r] = rowCount; // To je znak da je vrednost neveljavna
-				}
-				colIndex = 0L;
-			}
 			rowIndex = row;
 			colIndex = 0L;
 		}
+		// OPOMBA:
+		// Stolpcu pristejemo 1, pred uporabo treba odsteti
+		// 0   -> invalid value
+		// k>0 -> stolpec == k-1
 
+#ifdef ELL_CPU_OPTIMIZE
+		ellValues[maxElements*row + colIndex] = e.value;
+		ellColIdx[maxElements*row + colIndex] = e.col + 1u;
+#else	// za GPU
 		ellValues[rowCount*colIndex + row] = e.value;
-		ellColIdx[rowCount*colIndex + row] = e.col;
+		ellColIdx[rowCount*colIndex + row] = e.col + 1u;
+#endif
 		
 		colIndex++;
 	}
@@ -185,8 +190,9 @@ void compactCooToHybrid(ListCooEntry *listCoo, MatrixEll *ellMatrix, MatrixCoo *
 	// Inicializacija ELL
 	ellMatrix->columnsPerRow = elementsPerRowEll;
 	ellMatrix->rows = rowCount;
-	double *ellValues = (double*) malloc(sizeof(double) * ((long) elementsPerRowEll * (long) rowCount));
-	unsigned int *ellColIdx = (unsigned int*) malloc(sizeof(unsigned int) * ((long) elementsPerRowEll * (long) rowCount));
+	long allocationSize = (long) elementsPerRowEll * (long) rowCount;
+	double *ellValues = (double*) calloc(allocationSize, sizeof(double));
+	unsigned int *ellColIdx = (unsigned int*) calloc(allocationSize, sizeof(unsigned int));
 
 	// Inicializacija COO
 	cooMatrix->valuesLen = elementsInCoo;
@@ -214,22 +220,19 @@ void compactCooToHybrid(ListCooEntry *listCoo, MatrixEll *ellMatrix, MatrixCoo *
 		row = (long) e.row;
 
 		if (row > rowIndex) {
-			// zafilamo vse lukne do tu
-			for (long r = rowIndex; r < row; r++) {
-				for (long col = colIndex; col < elementsPerRowEll; col++) {
-					ellValues[rowCount*col + r] = 0.0;
-					ellColIdx[rowCount*col + r] = rowCount; // To je znak da je vrednost neveljavna
-				}
-				colIndex = 0L;
-			}
 			rowIndex = row;
 			colIndex = 0L;
 		}
 
 		if (colIndex < elementsPerRowEll) {
 			// ELL
+#ifdef ELL_CPU_OPTIMIZE
+			ellValues[elementsPerRowEll*row + colIndex] = e.value;
+			ellColIdx[elementsPerRowEll*row + colIndex] = e.col + 1u;
+#else	// za GPU
 			ellValues[rowCount*colIndex + row] = e.value;
-			ellColIdx[rowCount*colIndex + row] = e.col;
+			ellColIdx[rowCount*colIndex + row] = e.col + 1u;
+#endif
 		} else {
 			// COO
 			cooValues[cooIndex] = e.value;
