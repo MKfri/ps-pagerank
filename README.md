@@ -35,7 +35,7 @@ Za testiranje se uporabi arnesovo gručo, vozlišča wn201-224.
 ## Formati za shranjevanje redkih matrik (Sparse matrices)
 Naj bo podana matrika: 
 
-![Matrika 6x6](./matrika.png)
+![Matrika 6x6](./images/matrika.png)
 
 ### COO - Coordinate format
 Za vsako neničelno vrednost zapišemo vrstico, stolpec in vrednost.
@@ -72,13 +72,13 @@ Primer:
 Max št. elementov v vrstici je 3
 
 Skrčena matrika:
-TODO
+![Skrčena matrika](./images/matrix1.png)
 
 Matrika indeksov stolpcev:
-TODO
+![Stolpci](./images/matrix2.png)
 
 ### Hybrid - ELL + COO
-ELL format je zelo potraten, primer: ![ell-fail](./ell-fail.png)
+ELL format je zelo potraten, primer: ![Ell fail](./images/ell-fail.png)
 
 Zato uporabimo kombinacijo ELL + COO. Najprej določimo koliko elementov na vrstico bo šlo v ELL, ponavadi vzamemo kar povprečje, elemente iz daljših vrstic pa damo v COO. Tako smo izhodiščno matriko razbili na vsoto dveh matrik, zmnožimo kot: (A+B)x = Ax + Bx.
 Opomba, za naše primere gre ZELO malo elementov v ELL; če vzamemo podatkovno zbirko uk-2002 in velikost vrstice 16 (povprečno št. elementov na vrstico). Gre v ELL le 26% elementov (78 259 781 od 298 113 762), ostali v COO. Pri 32: 41,5%. Pri 64: 50.2%. Poraba pomnilnika je: pri 16: 3,3GB, 32: 6,6GB, 64: 13,2GB.
