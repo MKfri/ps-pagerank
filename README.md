@@ -10,11 +10,26 @@ Cilj: Učinkovita paralelna implementacija algoritma pagerank. [1]
 * [ ] OpenCL implementacija s CSR, COO, HYBRID
 * [ ] Double vs single precision na GPU
 * [ ] OpenCL na dveh grafičnih karticah. (Na arnesu so na vsakem od vozlišč wn201-224 po 2 Nvidia V100) 
-* [ ] Če bo čas mogoče: OpenCL + MPI na Arnesovi gruči (24x Nvidia V100), treba se pozanimat kako usposobit MPI
+* [ ] (Če bo čas mogoče: OpenCL + MPI na Arnesovi gruči (24x Nvidia V100), treba se pozanimat kako usposobit MPI)
 * [ ] Izbira podatkovnih zbirk za benchmarking
 * [ ] Benchmarking
 * [ ] Predstavitev s povzetki rezultatov: grafi, povprečje + std. odklon, ...
 
+### Komentarji na TODO
+Za GPU vzamemo za osnovo pagerank single threaded implementacijo.
+
+Testira se 3 formate, in sicer CSR, COO in HYBRID. Pretvorba iz kompaktnega formata se izvede enonitno, beleži se čase kot pri implementaciji za CPU; READ, PREPare, CONVert, CALCulate. Pomemben je zlasti čas calculate, za primerjavo s openmp pa še convert.
+
+Doda se OpenCL boilerplate (predvsem mislim na kopiranje pomnilnika) ter ščepce. Doda se profiliranje (točno merjenje časa izvajanja ščepca).
+
+Potrebna bo globalna sinhronizacija po vsaki iteraciji (mogoče se znotraj istega ščepca poračuna tudi norma, pri tem naj grejo delni rezultati vsake niti v register, ter rezultati delovne skupine v lokalni pomnilnik, v delovni skupini se izvede podobna redukcija kot pri skalarnem produktu na predavanjih; zadnji del redukcije pa še na gostitelju) , za kar uporabimo gostitelja ter nato ponovno poženemo ščepec, pomnilnika pa se ohrani stari.
+
+Najprej naj dela zgoraj našteto na kateri od manjših podatkovnih zbirk, nato na uk-2002 in nato se implementirajo stvari naprej:
+* double vs single precision
+* 2 GPU-ja
+* morebiti OpenCL + MPI
+
+Za testiranje se uporabi arnesovo gručo, vozlišča wn201-224.
 
 
 ## Formati za shranjevanje redkih matrik (Sparse matrices)
@@ -33,6 +48,7 @@ Vrstica:  0, 0, 0, 1, 3, 3, 4, 4
 
 Stolpec:  0, 1, 5, 0, 2, 3, 0, 3
 
+
 ### CSR - Compressed row storage
 Vrednosti in stolpce hranimo na isti način kot pri COO. Za vsako vrstico pa si shranimo indek prve vrednosti v tej vrstici. Dolžina seznama, ki hrani podatke o vrsticah je torej 6+1 (dimenzija matrike + 1)
 V i-ti vrstici so torej elementi: {vrednost[k] | vrstica[i] <= k < vrstica[i+1]}
@@ -45,11 +61,35 @@ Stolpec:  0, 1, 5, 0, 2, 3, 0, 3
 
 Vrstica:  0, 3, 4, 4, 6, 8, 8
 
+
 ### ELL
+Recimo, da imamo sparse matriko, ki ima skoraj enako elementov v vsaki vrstici. Potem lahko matriko skrčimo na matriko, ki je široka toliko kot je največ elementov v neki vrstici in ima enako število vrstic. Neničelne elemente zapišemo v skrčeno matriko v istoležno vrstico, po naraščajočih stolpcih. Poleg te matrike potrebujemo še matriko enake velikosti, ki bo hranila dejanski stolpec za vsak element.
+
+Vrstice, ki nimajo dovolj elementov, da bi zapolnile celotno skrčeno matriko dopolnimo z neveljavnimi vrednostmi.
+
+Primer:
+
+Max št. elementov v vrstici je 3
+
+Skrčena matrika:
+TODO
+
+Matrika indeksov stolpcev:
+TODO
+
+### Hybrid - ELL + COO
+ELL format je zelo potraten, primer: ![ell-fail](./ell-fail.png)
+
+Zato uporabimo kombinacijo ELL + COO. Najprej določimo koliko elementov na vrstico bo šlo v ELL, ponavadi vzamemo kar povprečje, elemente iz daljših vrstic pa damo v COO. Tako smo izhodiščno matriko razbili na vsoto dveh matrik, zmnožimo kot: (A+B)x = Ax + Bx.
+Opomba, za naše primere gre ZELO malo elementov v ELL; če vzamemo podatkovno zbirko uk-2002 in velikost vrstice 16 (povprečno št. elementov na vrstico). Gre v ELL le 26% elementov (78 259 781 od 298 113 762), ostali v COO. Pri 32: 41,5%. Pri 64: 50.2%. Poraba pomnilnika je: pri 16: 3,3GB, 32: 6,6GB, 64: 13,2GB.
+TODO: dodaj graf razporeditve
+
+Zakaj se sploh ubadati z ELL formatom?
+Zasnova GPU veleva, da lahko niti v snopu učinkovito hkrati dostopajo do zaporednih pomnilniških lokacij. Če matriko ELL implementiramo kot 1D vektor po stolpcih ter vsaki niti na GPU dodelimo množenje 1 vrstice, bo snop lahko učinkovito dostopal do pomnilnika, saj bo hkrati prenesel 1. element za 32 vrstic, na to 2. element za 32 vrstic...
 
 
 ## Testne datoteke
-V zbirki SuiteSparse Matrix Collection (predhodno znana kot University of Florida Sparse Matrix Collection) najdemo primerke sparse matrik, pridobljenih z webcrawlanjem resničnih podatkov na neki podmnožici celotnega interneta. Ti podatki so veliko bolj realen preizkus implementacije algoritma pagerank, kot bi bili kakšni naključno generirani podatki ter so že v željenem formatu (Matrix market).
+V zbirki SuiteSparse Matrix Collection (predhodno znana kot University of Florida Sparse Matrix Collection) najdemo primerke sparse matrik, pridobljenih z webcrawlanjem resničnih podatkov na neki podmnožici celotnega interneta. Ti podatki so veliko bolj realen preizkus implementacije algoritma pagerank, kot bi bili kakšni naključno generirani podatki ter so že v željenem formatu (Matrix market). Potrebno pa je odstraniti prvih nekaj vrstic (kar se začne s % in tisto vrstico, ki ima podatek o št. vrstic in neničelnih elementov - 3 elemente)
 
 Povezava do te zbirke je [2]. Ker se včasih prenos ne začne, je alternativna povezava [3], na kateri je bila zbirka originalno dostopna. Matirke, ki jih uporabljamo so dostopne na obeh povezavah.
 
