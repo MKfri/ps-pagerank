@@ -27,6 +27,9 @@
 //#define FORMAT_HYBRID
 //#define GET_NNZ_DISTRIBUTION
 
+#define SIZE			(1024)
+#define WORKGROUP_SIZE	(256)
+#define MAX_SOURCE_SIZE (16384)
 
 
 int main(int argc, char **argv) {
@@ -197,6 +200,20 @@ int main(int argc, char **argv) {
 
 	int iterations = 0;
 
+	char *source_str;
+
+	// branje datoteke
+    fp = fopen("kernel.cl", "r");
+    if(!fp)
+    {
+        fprintf(stderr, ":-(\n");
+        return 1;
+    }
+    source_str = (char*)malloc(MAX_SOURCE_SIZE);
+    source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
+    source_str[source_size] = '\0';
+    fclose(fp);
+
     // Podatki o platformi
 	cl_platform_id	platform_id[10];
 	cl_uint			ret_num_platforms;
@@ -216,11 +233,58 @@ int main(int argc, char **argv) {
 	cl_command_queue command_queue = clCreateCommandQueue(context, device_id[0], 0, &ret);
 
     // TO_DO: Delitev dela 
+	int vectorSize = SIZE;
 	size_t local_item_size = WORKGROUP_SIZE;
 	size_t num_groups = ((vectorSize - 1) / local_item_size + 1);
 	size_t global_item_size = num_groups * local_item_size;
 
-    
+
+	//rezervacija pomnilnika
+	//sizes of column row valueslen?
+	double *values = malloc(sizeof(double));
+	unsigned int *columnIdx = malloc(sizeof(unsigned int));
+	unsigned int *rowIdx = malloc(sizeof(unsigned int));
+	unsigned int valuesLen = malloc(sizeof(unsigned int));
+
+	//alokacija pomnilnika na napravi
+	/*cl_mem a_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, vectorSize * sizeof(double), valuesLen, &ret);
+	cl_mem b_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, vectorSize * sizeof(unsigned int), valuesLen, &ret);
+	cl_mem c_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, vectorSize * sizeof(unsigned int), valuesLen, &ret);
+	cl_mem d_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, vectorSize * sizeof(unsigned int), valuesLen, &ret);*/
+
+	// Priprava programa
+	cl_program program = clCreateProgramWithSource(context, 1, (const char **)&source_str, NULL, &ret);
+
+    // Prevajanje
+	ret = clBuildProgram(program, 1, &device_id[0], NULL, NULL, NULL);
+
+	// "s"cepec: priprava objekta
+	cl_kernel kernel = clCreateKernel(program, "pagerank", &ret);
+
+	// "s"cepec: argumenti
+	//podamo en double, 2 pointerja na uint in en uint
+	ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&values_mem_obj);
+	ret |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&cId_mem_obj);
+	ret |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *)&rId_mem_obj);
+	ret |= clSetKernelArg(kernel, 3, sizeof(cl_double), (void *)&valuesLen);
+
+	// "s"cepec: zagon
+	ret = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_item_size, local_item_size, 0, NULL, NULL);
+
+	// Kopiranje rezultatov
+	//ret = clEnqueueReadBuffer(command_queue, c_mem_obj, CL_TRUE, 0, h * w * sizeof(float), C, 0, NULL, NULL);
+
+	// "ci"s"cenje
+	ret = clFlush(command_queue);
+	ret = clFinish(command_queue);
+	ret = clReleaseKernel(kernel);
+	ret = clReleaseProgram(program);
+	//ret = clReleaseMemObject(a_mem_obj);
+	//ret = clReleaseMemObject(b_mem_obj);
+	//ret = clReleaseMemObject(c_mem_obj);
+	ret = clReleaseCommandQueue(command_queue);
+	ret = clReleaseContext(context);
+
 
 
 	// Do & while -> Lazje dodati OpenMP pragme
