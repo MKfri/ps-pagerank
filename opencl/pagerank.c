@@ -244,6 +244,8 @@ int main(int argc, char **argv) {
 	double *csrValues = csrMatrix->values; //matrika
 	unsigned int *csrColumns = csrMatrix->columnIdx; //vektor
 	unsigned int endRowPtrIndex = csrMatrix->rowPtr; 
+	int rPtrLen = csrMatrix->rowPtrLen;
+	unsigned int *valLen = csrMatrix->valuesLen;
 
 	double *values = malloc(csrValues * sizeof(double)); //what is the size
 	unsigned int *columnIdx = malloc(csrColumns * sizeof(unsigned int));
@@ -256,9 +258,9 @@ int main(int argc, char **argv) {
 	unsigned int valuesLen = malloc(sizeof(unsigned int)); //needed?
 
 	//alokacija pomnilnika na napravi
-	cl_mem val_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, csrValues * sizeof(double), values, &ret);
-	cl_mem col_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, csrColumns * sizeof(unsigned int), columnIdx, &ret);
-	cl_mem rowPtr_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, endRowPtrIndex * sizeof(unsigned int), rowPtr, &ret);
+	cl_mem val_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, csrValues * sizeof(double), csrValues, &ret);
+	cl_mem col_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, csrColumns * sizeof(unsigned int), csrColumns, &ret);
+	cl_mem rowPtr_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, endRowPtrIndex * sizeof(unsigned int), endRowPtrIndex, &ret);
 	cl_mem prej_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(double) * steviloVozlisc, prejsna, &ret);
 	cl_mem tren_mem_obj = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(double) * steviloVozlisc, trenutna, &ret);
 	
@@ -275,11 +277,13 @@ int main(int argc, char **argv) {
 
 	// "s"cepec: argumenti
 	//podamo en double, 2 pointerja na uint in en uint
-	ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&val_mem_obj);
-	ret |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&col_mem_obj);
-	ret |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *)&rowPtr_mem_obj);
-	ret |= clSetKernelArg(kernel, 3, sizeof(cl_double), (void *)&prej_mem_obj);
-	ret |= clSetKernelArg(kernel, 4, sizeof(cl_double), (void *)&tren_mem_obj);
+	ret = clSetKernelArg(kernel, 0, sizeof(cl_double), &csrValues);
+	ret |= clSetKernelArg(kernel, 1, sizeof(cl_uint), &csrColumns);
+	ret |= clSetKernelArg(kernel, 2, sizeof(cl_uint), &endRowPtrIndex);
+	ret |= clSetKernelArg(kernel, 3, sizeof(cl_int), &rPtrLen);
+	ret |= clSetKernelArg(kernel, 4, sizeof(cl_uint), &valLen);
+	ret |= clSetKernelArg(kernel, 5, sizeof(cl_double), (void *)&prej_mem_obj);
+	ret |= clSetKernelArg(kernel, 6, sizeof(cl_double), (void *)&tren_mem_obj);
 
 	// "s"cepec: zagon
 	ret = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_item_size, local_item_size, 0, NULL, NULL);
