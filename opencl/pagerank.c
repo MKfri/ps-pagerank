@@ -25,7 +25,6 @@
 //#define FORMAT_COO
 //#define FORMAT_ELL
 //#define FORMAT_HYBRID
-//#define GET_NNZ_DISTRIBUTION
 
 
 #define WORKGROUP_SIZE	(128)
@@ -35,7 +34,7 @@
 
 int ret_index = 1;
 void handle_ret(int ret) {
-	printf("[%d] Ret value = %d \n", ret_index, ret);
+	//printf("[%d] Ret value = %d \n", ret_index, ret);
 	ret_index++;
 }
 
@@ -177,13 +176,6 @@ int main(int argc, char **argv) {
 	MatrixCoo *cooMatrix = (MatrixCoo*) malloc(sizeof(MatrixCoo));
 	compactCooToHybrid(listCoo, ellMatrix, cooMatrix, steviloVozlisc);
 
-#elif defined GET_NNZ_DISTRIBUTION
-	// Distribution of nonzero (NNZ) elements in rows
-	#warning Maybe fix allocation
-	int allocation = 1000000;
-	getRowDistribution(listCoo, steviloVozlisc, allocation);
-	exit(0);
-
 #else
 	#warning Format ni definiran, koda ne bo delovala
 
@@ -199,11 +191,6 @@ int main(int argc, char **argv) {
 	// Podatke smo nalozili in spravili v pravi format
 	// -> zacnemo izvajanje algoritma pagerank
 
-	//double *prevR = (double*) malloc(sizeof(double) * steviloVozlisc);
-	//double *currR = (double*) malloc(sizeof(double) * steviloVozlisc);
-
-	double *tmp;
-
 	double oneOverN = 1.0 / steviloVozlisc;
 	double oneMinusDOverN = (1.0 - D) / steviloVozlisc;
 
@@ -213,11 +200,10 @@ int main(int argc, char **argv) {
 	size_t source_size;
 
 	// branje datoteke
-	FILE* fp;
+	FILE *fp;
     fp = fopen("kernel.cl", "r");
-    if(!fp)
-    {
-        fprintf(stderr, ":-(\n");
+    if (!fp) {
+        fprintf(stderr, "Napaka pri branju datoteke s scpecem!\n");
         return 1;
     }
     source_str = (char*) malloc(MAX_SOURCE_SIZE);
@@ -257,19 +243,8 @@ int main(int argc, char **argv) {
 	printf("Loc = %d\n", local_item_size);
 	printf("Groups = %d\n", num_groups);
 	printf("Glo = %d\n", global_item_size);
+	printf("St. vozlisc = %d\n", steviloVozlisc);
 
-
-
-	//rezervacija pomnilnika
-	//double *csrValues = csrMatrix->values; //matrika
-	//unsigned int *csrColumns = csrMatrix->columnIdx; //vektor
-	//unsigned int endRowPtrIndex = csrMatrix->rowPtr; 
-	//int rPtrLen = csrMatrix->rowPtrLen;
-	//unsigned int *valLen = csrMatrix->valuesLen;
-
-	//double *values = malloc(csrValues * sizeof(double)); //what is the size
-	//unsigned int *columnIdx = malloc(csrColumns * sizeof(unsigned int));
-	//unsigned int *rowPtr = malloc(sizeof(unsigned int));
 
 
 	// Trenutni in prejsni vektor v iteraciji pagerank
@@ -281,49 +256,41 @@ int main(int argc, char **argv) {
 	}
 
 
-	//int *rowPtrLen = malloc(sizeof(int)); //needed?
-	//unsigned int valuesLen = malloc(sizeof(unsigned int)); //needed?
-
-	//alokacija pomnilnika na napravi
+	// Alokacije pomnilnika na napravi
 	cl_mem val_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
 										csrMatrix->valuesLen * sizeof(double), csrMatrix->values, &ret);
-	handle_ret(ret);
 
 	cl_mem col_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
 										csrMatrix->valuesLen * sizeof(unsigned int), csrMatrix->columnIdx, &ret);
-handle_ret(ret);
+
 	cl_mem rowPtr_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
 										(csrMatrix->rowPtrLen+1) * sizeof(unsigned int), csrMatrix->rowPtr, &ret);
-handle_ret(ret);
-
 
 	cl_mem prej_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-										sizeof(double) * steviloVozlisc, prejsna, &ret);
+										steviloVozlisc * sizeof(double), prejsna, &ret);
 
-	handle_ret(ret);
 	cl_mem tren_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, 
-										sizeof(double) * steviloVozlisc, trenutna, &ret);
-	handle_ret(ret);
-	//CL_INVALID_VALUE
-	//CL_INVALID_BUFFER_SIZE
-	//CL_INVALID_HOST_PTR
+										steviloVozlisc * sizeof(double), trenutna, &ret);
 	
-	//cl_mem rowPtrLen_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(unsigned int), rowPtrLen, &ret);
+	cl_mem workgroup_sum_mem_obj = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
+										num_groups * sizeof(double), NULL, &ret);
+
 
 	// Priprava programa
 	cl_program program = clCreateProgramWithSource(context, 1, (const char **)&source_str, NULL, &ret);
 	handle_ret(ret);
 
+
     // Prevajanje
 	ret = clBuildProgram(program, 1, &device_id[0], NULL, NULL, NULL);
 	handle_ret(ret);
 
-	// "s"cepec: priprava objekta
+	// Scepec: priprava objekta
 	cl_kernel kernel = clCreateKernel(program, "pagerank", &ret);
 	handle_ret(ret);
 
-	// scepec: argumenti
-	//podamo en double, 2 pointerja na uint in en uint
+	free(source_str);
+
 
 	double myD = D;
 
@@ -335,58 +302,47 @@ handle_ret(ret);
 	ret |= clSetKernelArg(kernel, 4, sizeof(cl_double), (void *)&myD);
 	ret |= clSetKernelArg(kernel, 5, sizeof(cl_double), (void *)&oneMinusDOverN);
 
+	// 6 in 7 nastavimo v zanki
+
+	ret |= clSetKernelArg(kernel, 8, sizeof(cl_mem), (void *)&workgroup_sum_mem_obj);
+	ret |= clSetKernelArg(kernel, 9, local_item_size*sizeof(cl_double), NULL);		
+
 	handle_ret(ret);
 
 
+	// Za izracun norme
+	double *workgroupSums = malloc(num_groups * sizeof(double));
 
+	cl_mem muh_tmp;
 
 
 	// Do & while -> Lazje dodati OpenMP pragme
 	double norm;
 	double squaredSum;
 
-	/*for (int i = 0; i < steviloVozlisc; i++) {
-		currR[i] = oneOverN;
-	}*/
-	printf("St = %d\n", steviloVozlisc);
-	cl_mem muh_tmp;
-
 	do {
 		iterations++;
 
-		//tmp = prevR;
-		//prevR = currR;
-		//currR = tmp;
-
-		squaredSum = 0.0;
-		double tmp2;
-
-		// Zmnozimo matriko in vektor prevR ter shranimo v currR
-#if defined (FORMAT_CSR)
-
-		// SET VECTORS
+		// Properly set vectors
 		muh_tmp = prej_mem_obj;
 		prej_mem_obj = tren_mem_obj;
 		tren_mem_obj = muh_tmp;
+
+		squaredSum = 0.0;
+
+		// Zmnozimo matriko in vektor prevR ter shranimo v currR
+#if defined (FORMAT_CSR)
 
 		ret |= clSetKernelArg(kernel, 6, sizeof(cl_mem), (void *)&prej_mem_obj);
 		ret |= clSetKernelArg(kernel, 7, sizeof(cl_mem), (void *)&tren_mem_obj);
 
 		ret = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
-		//ret = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
-		//handle_ret(ret);
-		ret = clEnqueueReadBuffer(command_queue, prej_mem_obj, CL_TRUE, 0, steviloVozlisc * sizeof(double), prejsna, 0, NULL, NULL);
-		//handle_ret(ret);
-		ret = clEnqueueReadBuffer(command_queue, tren_mem_obj, CL_TRUE, 0, steviloVozlisc * sizeof(double), trenutna, 0, NULL, NULL);
-		//handle_ret(ret);
+		handle_ret(ret);
 
+		ret = clEnqueueReadBuffer(command_queue, workgroup_sum_mem_obj, CL_TRUE, 0, 
+									num_groups * sizeof(double), workgroupSums, 0, NULL, NULL);
+		handle_ret(ret);
 
-
-
-		//printf("0 Debug\n");
-
-		// Izracun norme vektorja
-		// Potrebujemo trenutni in prejsnji vektor
 
 		/*double *csrValues = csrMatrix->values;
 		unsigned int *csrColumns = csrMatrix->columnIdx;
@@ -455,22 +411,29 @@ handle_ret(ret);
 			currR[cooRows[i]] += D * cooValues[i] * prevR[cooColumns[i]];
 		}
 #endif*/
-		//printf("1 Debug\n");
-		// Izracun norme
+
+
+
+		/*
 		for (int i = 0; i < steviloVozlisc; i++) {
 			tmp2 = (prejsna[i] - trenutna[i]);
 			squaredSum += tmp2*tmp2;
 		}
+		norm = sqrt(squaredSum);*/
+
+		// Izracun norme
+		for (int i = 0; i < num_groups; i++) {
+			squaredSum += workgroupSums[i];
+		}
 		norm = sqrt(squaredSum);
-		//printf("2 Debug %f\n", norm);
 
 	} while (norm > EPSILON);
 	// Konec iteracije
 
 
 	// Free
-	//free(prevR);
-	tmp = NULL;
+	free(prejsna);
+	free(workgroupSums);
 
 #ifdef FORMAT_CSR
 	freeMatrixCsr(csrMatrix);
@@ -528,6 +491,10 @@ handle_ret(ret);
 #endif
 
 #ifdef OUTPUT_CHECK
+	// Potegnemo zadnjo vrednost vektorja iz gpu
+	ret = clEnqueueReadBuffer(command_queue, tren_mem_obj, CL_TRUE, 0, steviloVozlisc * sizeof(double), trenutna, 0, NULL, NULL);
+	handle_ret(ret);
+
 	double endSum = 0.0;
 	double sqSum = 0.0;
 	for (int i = 0; i < steviloVozlisc; i++) {
@@ -538,8 +505,7 @@ handle_ret(ret);
 	printf("Norm %.8f\n", sqrt(sqSum));
 #endif
 
-
-	//free(currR);
+	free(trenutna);
 
 
 	// OpenCL clean
@@ -552,6 +518,7 @@ handle_ret(ret);
 	ret = clReleaseMemObject(rowPtr_mem_obj);
 	ret = clReleaseMemObject(prej_mem_obj);
 	ret = clReleaseMemObject(tren_mem_obj);
+	ret = clReleaseMemObject(workgroup_sum_mem_obj);
 	ret = clReleaseCommandQueue(command_queue);
 	ret = clReleaseContext(context);
 
