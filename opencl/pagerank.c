@@ -201,6 +201,7 @@ int main(int argc, char **argv) {
 	int iterations = 0;
 
 	char *source_str;
+	size_t source_size;
 
 	// branje datoteke
     fp = fopen("kernel.cl", "r");
@@ -240,17 +241,28 @@ int main(int argc, char **argv) {
 
 
 	//rezervacija pomnilnika
-	//sizes of column row valueslen?
-	double *values = malloc(sizeof(double));
-	unsigned int *columnIdx = malloc(sizeof(unsigned int));
-	unsigned int *rowIdx = malloc(sizeof(unsigned int));
-	unsigned int valuesLen = malloc(sizeof(unsigned int));
+	double *csrValues = csrMatrix->values; //matrika
+	unsigned int *csrColumns = csrMatrix->columnIdx; //vektor
+	unsigned int endRowPtrIndex = csrMatrix->rowPtr; 
+
+	double *values = malloc(csrValues * sizeof(double)); //what is the size
+	unsigned int *columnIdx = malloc(csrColumns * sizeof(unsigned int));
+	unsigned int *rowPtr = malloc(sizeof(unsigned int));
+	double *prejsna = malloc(steviloVozlisc * sizeof(double));
+	double *trenutna = malloc(steviloVozlisc * sizeof(double));
+
+
+	int *rowPtrLen = malloc(sizeof(int)); //needed?
+	unsigned int valuesLen = malloc(sizeof(unsigned int)); //needed?
 
 	//alokacija pomnilnika na napravi
-	/*cl_mem a_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, vectorSize * sizeof(double), valuesLen, &ret);
-	cl_mem b_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, vectorSize * sizeof(unsigned int), valuesLen, &ret);
-	cl_mem c_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, vectorSize * sizeof(unsigned int), valuesLen, &ret);
-	cl_mem d_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, vectorSize * sizeof(unsigned int), valuesLen, &ret);*/
+	cl_mem val_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, csrValues * sizeof(double), values, &ret);
+	cl_mem col_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, csrColumns * sizeof(unsigned int), columnIdx, &ret);
+	cl_mem rowPtr_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, endRowPtrIndex * sizeof(unsigned int), rowPtr, &ret);
+	cl_mem prej_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(double) * steviloVozlisc, prejsna, &ret);
+	cl_mem tren_mem_obj = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(double) * steviloVozlisc, trenutna, &ret);
+	
+	//cl_mem rowPtrLen_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(unsigned int), rowPtrLen, &ret);
 
 	// Priprava programa
 	cl_program program = clCreateProgramWithSource(context, 1, (const char **)&source_str, NULL, &ret);
@@ -263,10 +275,11 @@ int main(int argc, char **argv) {
 
 	// "s"cepec: argumenti
 	//podamo en double, 2 pointerja na uint in en uint
-	ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&values_mem_obj);
-	ret |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&cId_mem_obj);
-	ret |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *)&rId_mem_obj);
-	ret |= clSetKernelArg(kernel, 3, sizeof(cl_double), (void *)&valuesLen);
+	ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&val_mem_obj);
+	ret |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&col_mem_obj);
+	ret |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *)&rowPtr_mem_obj);
+	ret |= clSetKernelArg(kernel, 3, sizeof(cl_double), (void *)&prej_mem_obj);
+	ret |= clSetKernelArg(kernel, 4, sizeof(cl_double), (void *)&tren_mem_obj);
 
 	// "s"cepec: zagon
 	ret = clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global_item_size, local_item_size, 0, NULL, NULL);
@@ -279,9 +292,11 @@ int main(int argc, char **argv) {
 	ret = clFinish(command_queue);
 	ret = clReleaseKernel(kernel);
 	ret = clReleaseProgram(program);
-	//ret = clReleaseMemObject(a_mem_obj);
-	//ret = clReleaseMemObject(b_mem_obj);
-	//ret = clReleaseMemObject(c_mem_obj);
+	ret = clReleaseMemObject(val_mem_obj);
+	ret = clReleaseMemObject(col_mem_obj);
+	ret = clReleaseMemObject(rowPtr_mem_obj);
+	ret = clReleaseMemObject(prej_mem_obj);
+	ret = clReleaseMemObject(tren_mem_obj);
 	ret = clReleaseCommandQueue(command_queue);
 	ret = clReleaseContext(context);
 

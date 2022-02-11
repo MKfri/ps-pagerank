@@ -1,7 +1,14 @@
-__kernel void pagerank(__global double *values, __global unsigned int *columnIdx, __global unsigned int*rowIdx, __global unsigned int valuesLen) {
+__kernel void pagerank(__global double *values, 
+                        __global unsigned int *columnIdx, 
+                        __global unsigned int *rowPtr, 
+                        __global unsigned double *prevR,
+                        __global unsigned double *currR) {
+
+
     double *csrValues = csrMatrix->values;
     unsigned int *csrColumns = csrMatrix->columnIdx;
     int i = get_global_id(0);
+    int j = get_global_id(1);
 
     currR[i] = 0.0;
 
