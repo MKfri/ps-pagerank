@@ -9,7 +9,7 @@
 int main() {
 
 	/*
-	DELA:)
+	//DELA:)
 	int N = 5;
 	double *mtx = (double*) calloc(N*N, sizeof(double));
 	for (int i = 0; i < N; i++) {

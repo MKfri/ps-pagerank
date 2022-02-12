@@ -26,7 +26,9 @@
 #define FORMAT_HYBRID
 
 
-#define WORKGROUP_SIZE	(128)
+// Doloceno preko CLI argumenta
+//#define WORKGROUP_SIZE (128)
+
 #define MAX_SOURCE_SIZE (16384)
 
 
@@ -42,11 +44,23 @@ void handle_ret(int ret) {
 int main(int argc, char **argv) {
 
 	// Prvi CLI argument je datoteka, oz. pot do datoteke
-	if (argc != 2) {
-		printf("Error: exactly one argument must be passed\n");
+	if (argc != 3) {
+		printf("Error: exactly two arguments must be passed\n");
+		printf("First => path to file\n");
+		printf("Second => workgroup size\n");
 		exit(1);
 	}
+
 	printf("Input file: `%s`\n", argv[1]);
+
+	int WORKGROUP_SIZE = atoi(argv[2]);
+
+	printf("Workgroup size: %d\n", WORKGROUP_SIZE);
+
+	if ((WORKGROUP_SIZE == 0) || (WORKGROUP_SIZE % 32 != 0)) {
+		printf("Error: Second parameter (workgroup size) must be integer and multiple of 32\n");
+		exit(1);
+	}
 
 
 	double start = omp_get_wtime();
@@ -411,7 +425,9 @@ int main(int argc, char **argv) {
 	ret |= clSetKernelArg(kernel2, 5, sizeof(cl_double), (void *)&oneMinusDOverN);
 #endif
 
-#if defined (FORMAT_HYBRID) 
+#if defined (FORMAT_HYBRID)
+
+	printf("(%d, %d, %d)\n", ellMatrix->rows, csrMatrix->rowPtrLen, steviloVozlisc);
 
 	ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&csr_val_mem_obj);
 	ret |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&csr_col_mem_obj);
@@ -463,11 +479,11 @@ int main(int argc, char **argv) {
 		ret |= clSetKernelArg(kernel, 7, sizeof(cl_mem), (void *)&tren_mem_obj);
 
 		ret = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
-		handle_ret(ret);
+		//handle_ret(ret);
 
 		ret = clEnqueueReadBuffer(command_queue, workgroup_sum_mem_obj, CL_TRUE, 0, 
 									num_groups * sizeof(double), workgroupSums, 0, NULL, NULL);
-		handle_ret(ret);
+		//handle_ret(ret);
 
 
 		/*double *csrValues = csrMatrix->values;
@@ -584,7 +600,7 @@ int main(int argc, char **argv) {
 #endif
 		norm = sqrt(squaredSum);
 
-		printf("Norm = %.12f\n", norm);
+		//printf("Norm = %.12f\n", norm);
 
 	} while (norm > EPSILON);
 	// Konec iteracije

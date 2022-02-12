@@ -31,13 +31,13 @@ __kernel void pagerank(__global double *csrValues,
         unsigned int column;
 
         for (long j = 0L; j < columnsPerRow; j++) {
-            effectiveIndex = j * matrixSize + lid;
+            effectiveIndex = j * matrixSize + gid;
             column = ellColumnIdx[effectiveIndex];
             if(column == 0u) break;
 
             newCurrR += ellValues[effectiveIndex] * prevR[column-1u];
         }
-
+        
         // CSR
         unsigned int startRowPtrIndex = csrRowPtr[gid];
         unsigned int endRowPtrIndex = csrRowPtr[gid+1];

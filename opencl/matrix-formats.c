@@ -212,29 +212,6 @@ void compactCooToHybridEllCsr(ListCooEntry *listCoo, MatrixEll *ellMatrix, Matri
 		exit(1);
 	}
 
-	/*
-	//int currRow = 0;
-	//csr->rowPtr[currRow] = 0u;
-
-	for (unsigned int k = 0u; k < elementCount; k++) {
-		CooEntry e = listArr[k];
-		csr->values[k] = e.value;
-		csr->columnIdx[k] = e.col;
-
-		if (e.row > currRow) {
-			for (int j = currRow; j < e.row; j++) {
-				csr->rowPtr[j+1] = k;
-			}
-			currRow = e.row;
-		}
-	}
-
-	(( DONE ))
-	//for (int j = currRow; j < rowCount; j++) {
-	//	csr->rowPtr[j+1] = elementCount;
-	//}
-	*/
-
 
 	long csrIndex = 0L;
 	long csrRow = 0L;
@@ -264,7 +241,7 @@ void compactCooToHybridEllCsr(ListCooEntry *listCoo, MatrixEll *ellMatrix, Matri
 
 			if (row > csrRow) {
 				for (int j = csrRow; j < row; j++) {
-					csrRowPtr[j+1] = csrIndex; //k; // K? ali csrIndex
+					csrRowPtr[j+1] = csrIndex;
 				}
 				csrRow = row;
 			}
