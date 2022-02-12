@@ -35,17 +35,11 @@ typedef struct __MatrixEll {
 } MatrixEll;
 
 
-//void getRowDistribution(ListCooEntry *listCoo, int rowCount, int SIZE);
-
-
 // Predpostavimo da je listCoo, ki ga dobimo kot prameter ze urejen
 MatrixCsr* compactCooToCsr(ListCooEntry *listCoo, int rowCount);
 MatrixCoo* compactCooToCoo(ListCooEntry *listCoo, int rowCount);
-//MatrixEll* compactCooToEll(ListCooEntry *listCoo, int rowCount);
 
 void compactCooToHybridEllCsr(ListCooEntry *listCoo, MatrixEll *ellMatrix, MatrixCsr *csrMatrix, int rowCount);
-
-//void compactCooToHybrid(ListCooEntry *listCoo, MatrixEll *ellMatrix, MatrixCoo *cooMatrix, int rowCount);
 
 
 void freeMatrixCsr(MatrixCsr *csr);
