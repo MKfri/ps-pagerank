@@ -1,12 +1,14 @@
 
 /** Various main methods used for testing copied here */
+#include "matrix-formats.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 
-/*
 // HYBRID
 int main() {
 
-	/ *
+	/*
 	DELA:)
 	int N = 5;
 	double *mtx = (double*) calloc(N*N, sizeof(double));
@@ -18,7 +20,7 @@ int main() {
 		// Zadnja vrstica
 		mtx[(N-1)*N + i] = (double) N - 1.0;
 	}
-	mtx[N*N-2] = 0.0;* /
+	mtx[N*N-2] = 0.0;*/
 
 	// Tudi ta dela:)
 	int N = 9;
@@ -55,8 +57,8 @@ int main() {
 
 
 	MatrixEll *ell = (MatrixEll*) malloc(sizeof(MatrixEll));
-	MatrixCoo *cooMatrix = (MatrixCoo*) malloc(sizeof(MatrixCoo));
-	compactCooToHybrid(list, ell, cooMatrix, N);
+	MatrixCsr *csrMatrix = (MatrixCsr*) malloc(sizeof(MatrixCsr));
+	compactCooToHybridEllCsr(list, ell, csrMatrix, N);
 
 	// ELL
 	int rows = ell->rows;
@@ -75,15 +77,29 @@ int main() {
 		printf("\n");
 	}
 
-	// COO
-	int elementCount = cooMatrix->valuesLen;
-	for (int i = 0; i < elementCount; i++) {
-		printf("(%d, %d) => %f\n", cooMatrix->rowIdx[i], cooMatrix->columnIdx[i], cooMatrix->values[i]);
+	// CSR
+	int elementCount = csrMatrix->valuesLen;
+	printf("CSR: \n");
+	for (int k = 0; k < (csrMatrix->rowPtrLen+1); k++) {
+		printf("%d; ", csrMatrix->rowPtr[k]);
+	}
+	printf("\n");
+	for (int i = 0; i < N; i++) {
+		printf("Row = %d; ", i);
+		int s = csrMatrix->rowPtr[i];
+		int e = csrMatrix->rowPtr[i+1];
+
+		for (int k = s; k < e; k++) {
+			printf("(c=%d, val=%f); ", csrMatrix->columnIdx[k], csrMatrix->values[k]);
+		}
+		printf("\n");
 	}
 
 
+
+
 	return 0;
-}*/
+}
 
 /*
 // ELL

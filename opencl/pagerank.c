@@ -21,10 +21,9 @@
 
 
 /** Set at compile time (i.e. -DFORMAT_CSR) **/
-#define FORMAT_CSR
+//#define FORMAT_CSR
 //#define FORMAT_COO
-//#define FORMAT_ELL
-//#define FORMAT_HYBRID
+#define FORMAT_HYBRID
 
 
 #define WORKGROUP_SIZE	(128)
@@ -168,13 +167,10 @@ int main(int argc, char **argv) {
 #elif defined FORMAT_COO
 	MatrixCoo *cooMatrix = compactCooToCoo(listCoo, steviloVozlisc);
 
-#elif defined FORMAT_ELL
-	MatrixEll *ellMatrix = compactCooToEll(listCoo, steviloVozlisc);
-
 #elif defined FORMAT_HYBRID
+	MatrixCsr *csrMatrix = (MatrixCsr*) malloc(sizeof(MatrixCsr));
 	MatrixEll *ellMatrix = (MatrixEll*) malloc(sizeof(MatrixEll));
-	MatrixCoo *cooMatrix = (MatrixCoo*) malloc(sizeof(MatrixCoo));
-	compactCooToHybrid(listCoo, ellMatrix, cooMatrix, steviloVozlisc);
+	compactCooToHybridEllCsr(listCoo, ellMatrix, csrMatrix, steviloVozlisc);
 
 #else
 	#warning Format ni definiran, koda ne bo delovala
@@ -187,7 +183,6 @@ int main(int argc, char **argv) {
 	freeListCooEntry(listCoo);
 
 	
-
 	// Podatke smo nalozili in spravili v pravi format
 	// -> zacnemo izvajanje algoritma pagerank
 
@@ -199,11 +194,17 @@ int main(int argc, char **argv) {
 	char *source_str;
 	size_t source_size;
 
-	// branje datoteke
-	FILE *fp;
-    //fp = fopen("kernelCoo.cl", "r");
 
-    fp = fopen("kernel.cl", "r");
+	char *kernelName;
+#ifdef FORMAT_CSR
+	kernelName = "kernel_csr.cl";
+#elif defined FORMAT_COO
+	kernelName = "kernel_coo.cl";
+#elif defined FORMAT_HYBRID
+	kernelName = "kernel_hybrid.cl";
+#endif
+
+    FILE *fp = fopen(kernelName, "r");
     if (!fp) {
         fprintf(stderr, "Napaka pri branju datoteke s scpecem!\n");
         return 1;
@@ -237,10 +238,16 @@ int main(int argc, char **argv) {
 
     // Delitev dela 
 
-#ifdef FORMAT_CSR
+#if defined (FORMAT_CSR) || defined (FORMAT_HYBRID)
 	size_t local_item_size = WORKGROUP_SIZE;
 	size_t num_groups = ((steviloVozlisc - 1) / local_item_size + 1);
 	size_t global_item_size = num_groups * local_item_size;
+/*
+#elif defined FORMAT_HYBRID
+	size_t local_item_size = WORKGROUP_SIZE;
+	size_t num_groups = ((steviloVozlisc - 1) / local_item_size + 1);
+	size_t global_item_size = num_groups * local_item_size;*/
+
 #elif defined FORMAT_COO
 	size_t local_item_size = WORKGROUP_SIZE;
 	size_t num_groups = ((cooMatrix->valuesLen - 1) / local_item_size + 1);
@@ -268,7 +275,7 @@ int main(int argc, char **argv) {
 
 
 	// Alokacije pomnilnika na napravi
-	#if defined (FORMAT_CSR)
+#if defined (FORMAT_CSR)
 	cl_mem val_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
 										csrMatrix->valuesLen * sizeof(double), csrMatrix->values, &ret);
 
@@ -287,7 +294,7 @@ int main(int argc, char **argv) {
 	cl_mem workgroup_sum_mem_obj = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
 										num_groups * sizeof(double), NULL, &ret);
 	
-	#elif defined (FORMAT_COO) 
+#elif defined (FORMAT_COO) 
 
 	cl_mem val_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
 										cooMatrix->valuesLen * sizeof(double), cooMatrix->values, &ret);
@@ -297,10 +304,7 @@ int main(int argc, char **argv) {
 
 	cl_mem rowIdx_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
 										cooMatrix->valuesLen * sizeof(unsigned int), cooMatrix->rowIdx, &ret);
-/*
-	cl_mem valLen_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
-										cooMatrix->valuesLen * sizeof(unsigned int), cooMatrix->valuesLen, &ret);
-*/
+
 	cl_mem prej_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
 										steviloVozlisc * sizeof(double), prejsna, &ret);
 
@@ -313,26 +317,32 @@ int main(int argc, char **argv) {
 
 
 
-	#elif defined (FORMAT_HYBRID)
-	cl_mem val_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
-										ellMatrix->values * sizeof(double), ellMatrix->values, &ret);
-	//check size 
-	cl_mem col_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
-										 ellMatrix->columnsPerRow * sizeof(unsigned int), ellMatrix->columnIdx, &ret);
+#elif defined (FORMAT_HYBRID)
+	// CSR
+	cl_mem csr_val_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
+										csrMatrix->valuesLen * sizeof(double), csrMatrix->values, &ret);
+	cl_mem csr_col_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
+										csrMatrix->valuesLen * sizeof(unsigned int), csrMatrix->columnIdx, &ret);
+	cl_mem csr_row_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
+										(csrMatrix->rowPtrLen + 1) * sizeof(unsigned int), csrMatrix->rowPtr, &ret);
 
-	cl_mem rows_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
-										ellMatrix->rows * sizeof(unsigned int), ellMatrix->rows, &ret);
+	// ELL
+	size_t velikost = ellMatrix->rows * ellMatrix->columnsPerRow;
+	cl_mem ell_val_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
+										velikost * sizeof(double), ellMatrix->values, &ret);
+	cl_mem ell_col_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
+										velikost * sizeof(unsigned int), ellMatrix->columnIdx, &ret);
 
+	// Prejsnja in trenutna (vektorja)
 	cl_mem prej_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
 										steviloVozlisc * sizeof(double), prejsna, &ret);
-
 	cl_mem tren_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, 
 										steviloVozlisc * sizeof(double), trenutna, &ret);
 	
 	cl_mem workgroup_sum_mem_obj = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
 										num_groups * sizeof(double), NULL, &ret);
 
-	#endif
+#endif
 
 
 	// Priprava programa
@@ -401,30 +411,34 @@ int main(int argc, char **argv) {
 	ret |= clSetKernelArg(kernel2, 5, sizeof(cl_double), (void *)&oneMinusDOverN);
 #endif
 
-	#if defined (FORMAT_HYBRID) 
+#if defined (FORMAT_HYBRID) 
 
-	ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&val_mem_obj);
-	ret |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&col_mem_obj);
-	ret |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *)&rows_mem_obj);
-	ret |= clSetKernelArg(kernel, 2, sizeof(cl_uint), (void *)&ellMatrix->columnsPerRow);
-	ret |= clSetKernelArg(kernel, 3, sizeof(cl_int), (void *)&steviloVozlisc);
-	ret |= clSetKernelArg(kernel, 4, sizeof(cl_double), (void *)&myD);
-	ret |= clSetKernelArg(kernel, 5, sizeof(cl_double), (void *)&oneMinusDOverN);
-	ret |= clSetKernelArg(kernel, 6, sizeof(cl_mem), (void *)&prej_mem_obj);
-	ret |= clSetKernelArg(kernel, 7, sizeof(cl_mem), (void *)&tren_mem_obj);
-	ret |= clSetKernelArg(kernel, 8, sizeof(cl_mem), (void *)&workgroup_sum_mem_obj);
-	ret |= clSetKernelArg(kernel, 9, local_item_size*sizeof(cl_double), NULL);	
-	#endif
+	ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&csr_val_mem_obj);
+	ret |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&csr_col_mem_obj);
+	ret |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *)&csr_row_mem_obj);
 
-	printf("aaaa\n");
+	ret |= clSetKernelArg(kernel, 3, sizeof(cl_mem), (void *)&ell_val_mem_obj);
+	ret |= clSetKernelArg(kernel, 4, sizeof(cl_mem), (void *)&ell_col_mem_obj);
+
+	ret |= clSetKernelArg(kernel, 5, sizeof(cl_int), (void *)&steviloVozlisc);
+	ret |= clSetKernelArg(kernel, 6, sizeof(cl_uint), (void *)&ellMatrix->columnsPerRow);
+	ret |= clSetKernelArg(kernel, 7, sizeof(cl_double), (void *)&myD);
+	ret |= clSetKernelArg(kernel, 8, sizeof(cl_double), (void *)&oneMinusDOverN);
+
+	// TODO
+	//ret |= clSetKernelArg(kernel, 9, sizeof(cl_mem), (void *)&prej_mem_obj);
+	//ret |= clSetKernelArg(kernel, 10, sizeof(cl_mem), (void *)&tren_mem_obj);
+	ret |= clSetKernelArg(kernel, 11, sizeof(cl_mem), (void *)&workgroup_sum_mem_obj);
+	ret |= clSetKernelArg(kernel, 12, local_item_size*sizeof(cl_double), NULL);	
+#endif
+
+
 	handle_ret(ret);
 
-	printf("bbbb\n");
 
 	// Za izracun norme
-//#ifndef FORMAT_COO
 	double *workgroupSums = malloc(num_groups * sizeof(double));
-//#endif
+
 	cl_mem muh_tmp;
 
 
@@ -470,37 +484,21 @@ int main(int argc, char **argv) {
 			currR[i] += oneMinusDOverN;
 		}*/
 #endif
-/*
-#if defined (FORMAT_ELL) || (FORMAT_HYBRID)
-		// ELL part, for pure ELL or for HYBRID
-		int rows = ellMatrix->rows;
-		long columnsPerRow = (long) ellMatrix->columnsPerRow;
-		long effectiveIndex;
-		double current;
-		int column;
 
-		for (long i = 0L; i < steviloVozlisc; i++) {
-			currR[i] = 0.0;
+#if defined (FORMAT_HYBRID)
+		ret |= clSetKernelArg(kernel, 9, sizeof(cl_mem), (void *)&prej_mem_obj);
+		ret |= clSetKernelArg(kernel, 10, sizeof(cl_mem), (void *)&tren_mem_obj);
+		//handle_ret(ret);
 
-			for (long j = 0L; j < columnsPerRow; j++) {
-				
-	#ifdef ELL_CPU_OPTIMIZE
-				effectiveIndex = i*columnsPerRow + j;
-	#else	// za GPU
-				effectiveIndex = j*rows + i;
-	#endif
-	
-				column = ellMatrix->columnIdx[effectiveIndex];
-				if (column == 0u) {
-					break;
-				}
-				currR[i] += ellMatrix->values[effectiveIndex] * prevR[column-1u];
-			}
+		ret = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
+		//handle_ret(ret);
 
-			currR[i] *= D;
-			currR[i] += oneMinusDOverN;
-		}
-#endif*/
+		ret = clEnqueueReadBuffer(command_queue, workgroup_sum_mem_obj, CL_TRUE, 0, 
+									num_groups * sizeof(double), workgroupSums, 0, NULL, NULL);
+		//handle_ret(ret);
+#endif
+
+
 #if defined (FORMAT_COO)
 		/*double *cooValues = cooMatrix->values;
 		unsigned int *cooColumns = cooMatrix->columnIdx;
@@ -555,16 +553,6 @@ int main(int argc, char **argv) {
 #endif
 
 
-/*#elif defined (FORMAT_HYBRID)
-		// COO part of HYBRID
-		double *cooValues = cooMatrix->values;
-		unsigned int *cooColumns = cooMatrix->columnIdx;
-		unsigned int *cooRows = cooMatrix->rowIdx;
-
-		for (unsigned int i = 0u; i < cooMatrix->valuesLen; i++) {
-			currR[cooRows[i]] += D * cooValues[i] * prevR[cooColumns[i]];
-		}
-#endif*/
 
 
 /*#ifdef FORMAT_COO
@@ -584,7 +572,7 @@ int main(int argc, char **argv) {
 		norm = sqrt(squaredSum);*/
 
 		// Izracun norme
-#ifdef FORMAT_CSR
+#if defined FORMAT_CSR || defined FORMAT_HYBRID
 		for (int i = 0; i < num_groups; i++) {
 			squaredSum += workgroupSums[i];
 		}
@@ -614,7 +602,7 @@ int main(int argc, char **argv) {
 #elif defined FORMAT_ELL
 	freeMatrixEll(ellMatrix);
 #elif defined FORMAT_HYBRID
-	freeMatrixCoo(cooMatrix);
+	freeMatrixCsr(csrMatrix);
 	freeMatrixEll(ellMatrix);
 #endif
 
@@ -680,13 +668,15 @@ int main(int argc, char **argv) {
 	free(trenutna);
 
 
+	// TODO glede na format
+
 	// OpenCL clean
 	ret = clFlush(command_queue);
 	ret = clFinish(command_queue);
 	ret = clReleaseKernel(kernel);
 	ret = clReleaseProgram(program);
-	ret = clReleaseMemObject(val_mem_obj);
-	ret = clReleaseMemObject(col_mem_obj);
+	//ret = clReleaseMemObject(val_mem_obj);
+	//ret = clReleaseMemObject(col_mem_obj);
 	//ret = clReleaseMemObject(rowPtr_mem_obj);
 	ret = clReleaseMemObject(prej_mem_obj);
 	ret = clReleaseMemObject(tren_mem_obj);
