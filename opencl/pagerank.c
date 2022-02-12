@@ -21,10 +21,10 @@
 
 
 /** Set at compile time (i.e. -DFORMAT_CSR) **/
-//#define FORMAT_CSR
+#define FORMAT_CSR
 //#define FORMAT_COO
 //#define FORMAT_ELL
-#define FORMAT_HYBRID
+//#define FORMAT_HYBRID
 
 
 #define WORKGROUP_SIZE	(128)
@@ -34,7 +34,7 @@
 
 int ret_index = 1;
 void handle_ret(int ret) {
-	//printf("[%d] Ret value = %d \n", ret_index, ret);
+	printf("[%d] Ret value = %d \n", ret_index, ret);
 	ret_index++;
 }
 
@@ -201,7 +201,9 @@ int main(int argc, char **argv) {
 
 	// branje datoteke
 	FILE *fp;
-    fp = fopen("kernelCoo.cl", "r");
+    //fp = fopen("kernelCoo.cl", "r");
+
+    fp = fopen("kernel.cl", "r");
     if (!fp) {
         fprintf(stderr, "Napaka pri branju datoteke s scpecem!\n");
         return 1;
@@ -235,15 +237,24 @@ int main(int argc, char **argv) {
 
     // Delitev dela 
 
+#ifdef FORMAT_CSR
 	size_t local_item_size = WORKGROUP_SIZE;
 	size_t num_groups = ((steviloVozlisc - 1) / local_item_size + 1);
 	size_t global_item_size = num_groups * local_item_size;
+#elif defined FORMAT_COO
+	size_t local_item_size = WORKGROUP_SIZE;
+	size_t num_groups = ((cooMatrix->valuesLen - 1) / local_item_size + 1);
+	size_t global_item_size = num_groups * local_item_size;
 
+	// Drugi scepec
+	size_t norm_num_groups = ((steviloVozlisc - 1) / local_item_size + 1);
+	size_t norm_global_item_size = norm_num_groups * local_item_size;
+#endif
 
-	//printf("Loc = %d\n", local_item_size);
-	//printf("Groups = %d\n", num_groups);
-	//printf("Glo = %d\n", global_item_size);
-	//printf("St. vozlisc = %d\n", steviloVozlisc);
+	printf("Loc = %d\n", local_item_size);
+	printf("Groups = %d\n", num_groups);
+	printf("Glo = %d\n", global_item_size);
+	printf("St. vozlisc = %d\n", steviloVozlisc);
 
 
 
@@ -286,18 +297,20 @@ int main(int argc, char **argv) {
 
 	cl_mem rowIdx_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
 										cooMatrix->valuesLen * sizeof(unsigned int), cooMatrix->rowIdx, &ret);
-
+/*
 	cl_mem valLen_mem_obj = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
 										cooMatrix->valuesLen * sizeof(unsigned int), cooMatrix->valuesLen, &ret);
-
+*/
 	cl_mem prej_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
 										steviloVozlisc * sizeof(double), prejsna, &ret);
 
 	cl_mem tren_mem_obj = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, 
 										steviloVozlisc * sizeof(double), trenutna, &ret);
 	
+	// NormAndInit
 	cl_mem workgroup_sum_mem_obj = clCreateBuffer(context, CL_MEM_WRITE_ONLY,
-										num_groups * sizeof(double), NULL, &ret);
+										norm_num_groups * sizeof(double), NULL, &ret);
+
 
 
 	#elif defined (FORMAT_HYBRID)
@@ -341,34 +354,52 @@ int main(int argc, char **argv) {
 	double myD = D;
 
 	//CSR
-	#if defined (FORMAT_CSR)
+#if defined (FORMAT_CSR)
 	ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&val_mem_obj);
+	handle_ret(ret);
 	ret |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&col_mem_obj);
+	handle_ret(ret);
 	ret |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *)&rowPtr_mem_obj);
+	handle_ret(ret);
 
 	ret |= clSetKernelArg(kernel, 3, sizeof(cl_int), (void *)&steviloVozlisc);
+	handle_ret(ret);
 	ret |= clSetKernelArg(kernel, 4, sizeof(cl_double), (void *)&myD);
+	handle_ret(ret);
 	ret |= clSetKernelArg(kernel, 5, sizeof(cl_double), (void *)&oneMinusDOverN);
+	handle_ret(ret);
 
 	// 6 in 7 nastavimo v zanki
 
 	ret |= clSetKernelArg(kernel, 8, sizeof(cl_mem), (void *)&workgroup_sum_mem_obj);
-	ret |= clSetKernelArg(kernel, 9, local_item_size*sizeof(cl_double), NULL);		
-	#endif
+	handle_ret(ret);
+	ret |= clSetKernelArg(kernel, 9, local_item_size*sizeof(cl_double), NULL);
+	handle_ret(ret);	
+#endif
 
 	//COO
-	#if defined (FORMAT_COO)
+#if defined (FORMAT_COO)
 	ret = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *)&val_mem_obj);
 	ret |= clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *)&col_mem_obj);
 	ret |= clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *)&rowIdx_mem_obj);
-	ret |= clSetKernelArg(kernel, 3, sizeof(cl_int), (void *)&steviloVozlisc);
+	ret |= clSetKernelArg(kernel, 3, sizeof(cl_int), (void *)&cooMatrix->valuesLen);
 	ret |= clSetKernelArg(kernel, 4, sizeof(cl_double), (void *)&myD);
 	ret |= clSetKernelArg(kernel, 5, sizeof(cl_double), (void *)&oneMinusDOverN);
-	ret |= clSetKernelArg(kernel, 6, sizeof(cl_mem), (void *)&prej_mem_obj);
-	ret |= clSetKernelArg(kernel, 7, sizeof(cl_mem), (void *)&tren_mem_obj);
-	ret |= clSetKernelArg(kernel, 8, sizeof(cl_mem), (void *)&workgroup_sum_mem_obj);
-	ret |= clSetKernelArg(kernel, 9, local_item_size*sizeof(cl_double), NULL);	
-	#endif
+	// V scepcu
+	//ret |= clSetKernelArg(kernel, 6, sizeof(cl_mem), (void *)&prej_mem_obj);
+	//ret |= clSetKernelArg(kernel, 7, sizeof(cl_mem), (void *)&tren_mem_obj);
+
+	//ret |= clSetKernelArg(kernel, 8, sizeof(cl_mem), (void *)&workgroup_sum_mem_obj);
+	//ret |= clSetKernelArg(kernel, 9, local_item_size*sizeof(cl_double), NULL);
+
+	cl_kernel kernel2 = clCreateKernel(program, "normAndInit", &ret);
+	handle_ret(ret);
+	ret = clSetKernelArg(kernel2, 0, sizeof(cl_int), (void *)&steviloVozlisc);
+	// V scpecu
+	ret |= clSetKernelArg(kernel2, 3, sizeof(cl_mem), (void *)&workgroup_sum_mem_obj);
+	ret |= clSetKernelArg(kernel2, 4, local_item_size*sizeof(cl_double), NULL);
+	ret |= clSetKernelArg(kernel2, 5, sizeof(cl_double), (void *)&oneMinusDOverN);
+#endif
 
 	#if defined (FORMAT_HYBRID) 
 
@@ -385,13 +416,15 @@ int main(int argc, char **argv) {
 	ret |= clSetKernelArg(kernel, 9, local_item_size*sizeof(cl_double), NULL);	
 	#endif
 
-
+	printf("aaaa\n");
 	handle_ret(ret);
 
+	printf("bbbb\n");
 
 	// Za izracun norme
+//#ifndef FORMAT_COO
 	double *workgroupSums = malloc(num_groups * sizeof(double));
-
+//#endif
 	cl_mem muh_tmp;
 
 
@@ -480,12 +513,46 @@ int main(int argc, char **argv) {
 			currR[cooRows[i]] += D * cooValues[i] * prevR[cooColumns[i]];
 		}*/
 
+		ret |= clSetKernelArg(kernel, 6, sizeof(cl_mem), (void *)&prej_mem_obj);
+		ret |= clSetKernelArg(kernel, 7, sizeof(cl_mem), (void *)&tren_mem_obj);
+		//handle_ret(ret);
+
+		ret |= clSetKernelArg(kernel2, 1, sizeof(cl_mem), (void *)&prej_mem_obj);
+		ret |= clSetKernelArg(kernel2, 2, sizeof(cl_mem), (void *)&tren_mem_obj);
+
+		//handle_ret(ret);
+
 		ret = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_item_size, &local_item_size, 0, NULL, NULL);
-		handle_ret(ret);
+		//handle_ret(ret);
+
+		ret = clFinish(command_queue);
+
+		//handle_ret(ret);
+
+		ret = clEnqueueNDRangeKernel(command_queue, kernel2, 1, NULL, &norm_global_item_size, &local_item_size, 0, NULL, NULL);
+		//handle_ret(ret);
 
 		ret = clEnqueueReadBuffer(command_queue, workgroup_sum_mem_obj, CL_TRUE, 0, 
-									num_groups * sizeof(double), workgroupSums, 0, NULL, NULL);
-		handle_ret(ret);
+									norm_num_groups * sizeof(double), workgroupSums, 0, NULL, NULL);
+		//handle_ret(ret);
+
+
+
+		//printf("BBB\n");
+
+
+		//ret = clEnqueueReadBuffer(command_queue, tren_mem_obj, CL_TRUE, 0, steviloVozlisc * sizeof(double), trenutna, 0, NULL, NULL);
+		//handle_ret(ret);
+
+		//printf("AAA\n");
+
+		//ret = clEnqueueReadBuffer(command_queue, prej_mem_obj, CL_TRUE, 0, steviloVozlisc * sizeof(double), prejsna, 0, NULL, NULL);
+		//handle_ret(ret);
+
+		//ret = clEnqueueReadBuffer(command_queue, workgroup_sum_mem_obj, CL_TRUE, 0, 
+		//							num_groups * sizeof(double), workgroupSums, 0, NULL, NULL);
+		//handle_ret(ret);
+#endif
 
 
 /*#elif defined (FORMAT_HYBRID)
@@ -500,8 +567,16 @@ int main(int argc, char **argv) {
 #endif*/
 
 
-
-		/*
+/*#ifdef FORMAT_COO
+	double tmp2;
+	for (int i = 0; i < steviloVozlisc; i++) {
+		tmp2 = (prejsna[i] - trenutna[i]);
+		squaredSum += tmp2*tmp2;
+	}
+	norm = sqrt(squaredSum);
+	printf("Norm = %.12f\n", norm);
+#endif
+		/ *
 		for (int i = 0; i < steviloVozlisc; i++) {
 			tmp2 = (prejsna[i] - trenutna[i]);
 			squaredSum += tmp2*tmp2;
@@ -509,10 +584,19 @@ int main(int argc, char **argv) {
 		norm = sqrt(squaredSum);*/
 
 		// Izracun norme
+#ifdef FORMAT_CSR
 		for (int i = 0; i < num_groups; i++) {
 			squaredSum += workgroupSums[i];
 		}
+#elif defined FORMAT_COO
+		for (int i = 0; i < norm_num_groups; i++) {
+			squaredSum += workgroupSums[i];
+			//printf("Elem = %.12f, \n", squaredSum);
+		}
+#endif
 		norm = sqrt(squaredSum);
+
+		printf("Norm = %.12f\n", norm);
 
 	} while (norm > EPSILON);
 	// Konec iteracije
@@ -521,6 +605,7 @@ int main(int argc, char **argv) {
 	// Free
 	free(prejsna);
 	free(workgroupSums);
+
 
 #ifdef FORMAT_CSR
 	freeMatrixCsr(csrMatrix);
@@ -602,10 +687,10 @@ int main(int argc, char **argv) {
 	ret = clReleaseProgram(program);
 	ret = clReleaseMemObject(val_mem_obj);
 	ret = clReleaseMemObject(col_mem_obj);
-	ret = clReleaseMemObject(rowPtr_mem_obj);
+	//ret = clReleaseMemObject(rowPtr_mem_obj);
 	ret = clReleaseMemObject(prej_mem_obj);
 	ret = clReleaseMemObject(tren_mem_obj);
-	ret = clReleaseMemObject(workgroup_sum_mem_obj);
+	//ret = clReleaseMemObject(workgroup_sum_mem_obj);
 	ret = clReleaseCommandQueue(command_queue);
 	ret = clReleaseContext(context);
 

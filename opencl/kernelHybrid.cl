@@ -1,3 +1,6 @@
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+
+
 __kernel void pagerank(__global double *values, 
                         __global unsigned int *columnIdx, 
                         unsigned int rows,

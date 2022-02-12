@@ -8,4 +8,7 @@ gcc pagerank.c \
     matrix-formats.c \
     -lm -fopenmp \
     -lOpenCL -O2 \
-    -o pagerank-csr
+    -o pagerank-coo
+
+    #-o pagerank-csr
+
