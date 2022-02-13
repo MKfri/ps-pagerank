@@ -72,6 +72,8 @@ povprecja = []
 povprecja2 = []
 povprecja3 = []
 povprecja4 = []
+povprecja5 = []
+povprecja6 = []
 
 for n in work_group:
     file_name = f"{data_folder}/csr_8-{n}.txt"
@@ -92,13 +94,26 @@ for n in work_group:
     file_name = f"{data_folder}/hybrid_15-{n}.txt"
     data = np.loadtxt(file_name, delimiter=",")
     povprecja4.append(np.average(data[:, COLUMN]))
-    
+
+data_folder = "opencl_float-uk-2002"
+
+for n in work_group:
+    file_name = f"{data_folder}/csr_8_{n}.txt"
+    data = np.loadtxt(file_name, delimiter=",")
+    povprecja5.append(np.average(data[:, COLUMN]))
+
+for n in work_group:
+    file_name = f"{data_folder}/hybrid_8_{n}.txt"
+    data = np.loadtxt(file_name, delimiter=",")
+    povprecja6.append(np.average(data[:, COLUMN]))
 
 w=0.8
 plt.bar(r, povprecja, w)
 plt.bar(r+5, povprecja2, w)
 plt.bar(r+10, povprecja3, w)
 plt.bar(r+15, povprecja4, w)
+plt.bar(r+20, povprecja5, w)
+plt.bar(r+25, povprecja6, w)
 
 
 plt.legend(loc='upper right')
