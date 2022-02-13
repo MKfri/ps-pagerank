@@ -11,7 +11,7 @@
 
 
 //#define OUTPUT_PRINT
-//#define OUTPUT_CHECK
+#define OUTPUT_CHECK
 #define CONSIDER_SORT
 
 
