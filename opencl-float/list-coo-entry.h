@@ -9,7 +9,7 @@
 typedef struct __CooEntry {
 	int row;
 	int col;
-	double value;
+	float value;
 } CooEntry;
 
 typedef struct __ListCooEntry {
@@ -26,7 +26,7 @@ ListCooEntry* initListCooEntry(unsigned int elementCount);
 
 void freeListCooEntry(ListCooEntry *list);
 
-void appendToListCooEntry(ListCooEntry *list, int i, int j, double value);
+void appendToListCooEntry(ListCooEntry *list, int i, int j, float value);
 
 void sortListCooEntry(ListCooEntry *list);
 

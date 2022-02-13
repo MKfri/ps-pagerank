@@ -38,7 +38,7 @@ void freeListCooEntry(ListCooEntry *list) {
 	free(list);
 }
 
-void appendToListCooEntry(ListCooEntry *list, int i, int j, double value) {
+void appendToListCooEntry(ListCooEntry *list, int i, int j, float value) {
 	CooEntry *entry = &(list->arr[list->elements]);
 	entry->row = i;
 	entry->col = j;

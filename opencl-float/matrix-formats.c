@@ -11,7 +11,7 @@ MatrixCsr* compactCooToCsr(ListCooEntry *listCoo, int rowCount) {
 	CooEntry *listArr = listCoo->arr;
 
 	MatrixCsr *csr = (MatrixCsr*) malloc(sizeof(MatrixCsr));
-	csr->values = (double*) malloc(sizeof(double) * elementCount);
+	csr->values = (float*) malloc(sizeof(float) * elementCount);
 
 	csr->columnIdx = (unsigned int*) malloc(sizeof(unsigned int) * elementCount);
 
@@ -53,7 +53,7 @@ MatrixCoo* compactCooToCoo(ListCooEntry *listCoo, int rowCount) {
 
     MatrixCoo *coo = (MatrixCoo*) malloc(sizeof(MatrixCoo));
     coo->valuesLen = elementCount;
-	coo->values = (double*) malloc(sizeof(double) * elementCount);
+	coo->values = (float*) malloc(sizeof(float) * elementCount);
 
 	coo->columnIdx = (unsigned int*) malloc(sizeof(unsigned int) * elementCount);
     coo->rowIdx = (unsigned int*) malloc(sizeof(unsigned int) * elementCount);
@@ -74,7 +74,7 @@ void compactCooToHybridEllCsr(ListCooEntry *listCoo, MatrixEll *ellMatrix, Matri
 	unsigned int elementCount = listCoo->elements;
 	CooEntry *listArr = listCoo->arr;
 
-	double avgElementsPerRow = ((double) elementCount) / ((double) rowCount);
+	float avgElementsPerRow = ((float) elementCount) / ((float) rowCount);
 	int elementsPerRowEll = ceil(avgElementsPerRow);
 
 	unsigned int elementsInCsr = 0;
@@ -103,12 +103,12 @@ void compactCooToHybridEllCsr(ListCooEntry *listCoo, MatrixEll *ellMatrix, Matri
 	ellMatrix->columnsPerRow = elementsPerRowEll;
 	ellMatrix->rows = rowCount;
 	long allocationSize = (long) elementsPerRowEll * (long) rowCount;
-	double *ellValues = (double*) calloc(allocationSize, sizeof(double));
+	float *ellValues = (float*) calloc(allocationSize, sizeof(float));
 	unsigned int *ellColIdx = (unsigned int*) calloc(allocationSize, sizeof(unsigned int));
 
 	// Inicializacija CSR
 	csrMatrix->valuesLen = elementsInCsr;
-	double *csrValues = (double*) malloc(sizeof(double) * elementsInCsr);
+	float *csrValues = (float*) malloc(sizeof(float) * elementsInCsr);
 	unsigned int *csrColIdx = (unsigned int*) malloc(sizeof(unsigned int) * elementsInCsr);
 	// Dolzina `rowCount + 1`
 	// Da lahko potem gremo lepo po parih brez skrbi

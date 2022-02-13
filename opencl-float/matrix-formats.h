@@ -1,14 +1,12 @@
 
-
 #include "list-coo-entry.h"
 
 #ifndef __MATRIX_FORMATS
 #define __MATRIX_FORMATS
 
 
-
 typedef struct __MatrixCoo {
-	double *values;
+	float *values;
 	unsigned int *columnIdx;
 	unsigned int *rowIdx;
 
@@ -17,7 +15,7 @@ typedef struct __MatrixCoo {
 
 
 typedef struct __MatrixCsr {
-	double *values;
+	float *values;
 	unsigned int *columnIdx;
 	unsigned int *rowPtr;
 
@@ -27,7 +25,7 @@ typedef struct __MatrixCsr {
 
 
 typedef struct __MatrixEll {
-	double *values;
+	float *values;
 	unsigned int *columnIdx;
 
 	unsigned int rows;
