@@ -64,13 +64,26 @@ print(sequential_percentages)
 
 
 
+fig, ax = plt.subplots()
+
 w = 0.8
 
 threads_num_str = [str(n) for n in thread_num]
 
-plt.bar(threads_num_str, sequential_percentages, w)
-plt.bar(threads_num_str, parallel_percentages, w, bottom=sequential_percentages)
+ax.bar(threads_num_str, sequential_percentages, w, label="Zaporedni del")
+ax.bar(threads_num_str, parallel_percentages, w, bottom=sequential_percentages, label="Vzporedni del")
 
+
+
+ax.set_xlabel('Število jeder')
+ax.set_ylabel('Delež (%)')
+
+numba = "8"
+if precision == "double":
+    numba = "15"
+
+plt.title(f'OpenMP: Delež zaporednosti in vzporednosti (format: {chosen_format.upper()}, natančnost 1e-{numba})')
+plt.legend(loc='lower right')
 
 
 plt.show()

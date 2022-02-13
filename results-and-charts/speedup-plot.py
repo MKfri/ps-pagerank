@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import Akima1DInterpolator
 
 
+fig, ax = plt.subplots()
+
 # --- PARAMETRI ---
 #data_folder = "openmp-single-prec"
 data_folder = "openmp-double-prec"
@@ -114,7 +116,10 @@ if (chosen_format in ["hybrid", "all"]):
     make_pretty_error_chart(x, y_hybrid, 'r', "Hybrid: COO+ELL")
 
 
+ax.set_xlabel('Število jeder')
+ax.set_ylabel('Pohitritev glede na 1 jedro')
 
+plt.title('OpenMP: Pohitritev (natančnost 1e-8)')
 plt.legend(loc='lower right')
 
 plt.show()

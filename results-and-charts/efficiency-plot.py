@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import Akima1DInterpolator
 
+fig, ax = plt.subplots()
 
 # --- PARAMETRI ---
 #data_folder = "openmp-single-prec"
@@ -56,13 +57,13 @@ if len(cli_params) == 3:
 def make_pretty_error_chart(x_vals, y_vals, color, label):
     fmt = f"o{color}"
 
-    plt.errorbar(x_vals, y_vals, label=label, barsabove=True, capsize=4, fmt=fmt)
+    ax.errorbar(x_vals, y_vals, label=label, barsabove=True, capsize=4, fmt=fmt)
 
     # Interpolacija
     akima_interp = Akima1DInterpolator(x_vals, y_vals)
     x_interp = np.linspace(x_vals.min(), x_vals.max(), 100)
     y_interp = akima_interp(x_interp)
-    plt.plot(x_interp, y_interp, color, ls="dotted")
+    ax.plot(x_interp, y_interp, color, ls="dotted")
 
 
 
@@ -114,6 +115,11 @@ if (chosen_format in ["hybrid", "all"]):
     make_pretty_error_chart(x, y_hybrid, 'r', "Hybrid: COO+ELL")
 
 
+
+ax.set_xlabel('Število jeder')
+ax.set_ylabel('Učinkovitost')
+
+plt.title('OpenMP učinkovitost (natančnost 1e-15)')
 
 plt.legend(loc='upper right')
 

@@ -4,9 +4,11 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import Akima1DInterpolator
 
 
+fig, ax = plt.subplots()
+
 # --- PARAMETRI ---
-#data_folder = "openmp-single-prec"
-data_folder = "openmp-double-prec"
+data_folder = "openmp-single-prec"
+#data_folder = "openmp-double-prec"
 # 7 => Parallel sections time
 COLUMN = 7
 labels_list = ["Število iteracij", "Sortiranje", "Branje",
@@ -60,15 +62,15 @@ if len(cli_params) == 4:
 def make_pretty_error_chart(x_vals, y_vals, err, color, label):
     fmt = f"o{color}"
     if display_error:
-        plt.errorbar(x_vals, y_vals, yerr=err, label=label, barsabove=True, capsize=4, fmt=fmt)
+        ax.errorbar(x_vals, y_vals, yerr=err, label=label, barsabove=True, capsize=4, fmt=fmt)
     else:
-        plt.errorbar(x_vals, y_vals, label=label, barsabove=True, capsize=4, fmt=fmt)
+        ax.errorbar(x_vals, y_vals, label=label, barsabove=True, capsize=4, fmt=fmt)
 
     # Interpolacija
     akima_interp = Akima1DInterpolator(x_vals, y_vals)
     x_interp = np.linspace(x_vals.min(), x_vals.max(), 100)
     y_interp = akima_interp(x_interp)
-    plt.plot(x_interp, y_interp, color, ls="dotted")
+    ax.plot(x_interp, y_interp, color, ls="dotted")
 
 
 
@@ -120,6 +122,11 @@ if (chosen_format in ["hybrid", "all"]):
     make_pretty_error_chart(x, y_hybrid, hybrid_err, 'r', "Hybrid: COO+ELL")
 
 
+
+ax.set_xlabel('Število jeder')
+ax.set_ylabel('Čas izvajanja')
+
+plt.title('OpenMP: Čas izvajanja (natančnost 1e-8)')
 
 plt.legend(loc='upper right')
 
