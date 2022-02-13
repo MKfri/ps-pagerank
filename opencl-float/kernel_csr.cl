@@ -13,10 +13,10 @@ __kernel void pagerank(__global float *values,
 
     int lid = get_local_id(0);
     int gid = get_global_id(0);
-    float diff = 0.0;
+    float diff = 0.0f;
 
     if (gid < matrixSize) {
-        float newCurrR = 0.0;
+        float newCurrR = 0.0f;
 
         unsigned int startRowPtrIndex = rowPtr[gid];
         unsigned int endRowPtrIndex = rowPtr[gid+1];

@@ -1,4 +1,4 @@
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+//#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
 
 __kernel void pagerank(__global float *csrValues,
@@ -22,11 +22,11 @@ __kernel void pagerank(__global float *csrValues,
     int lid = get_local_id(0);
     int gid = get_global_id(0);
 
-    float diff = 0.0;
+    float diff = 0.0f;
 
     if (gid < matrixSize) {
         // ELL
-        float newCurrR = 0.0;
+        float newCurrR = 0.0f;
         long effectiveIndex;
         unsigned int column;
 
