@@ -1,32 +1,32 @@
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
 
-__kernel void pagerank(__global double *csrValues,
+__kernel void pagerank(__global float *csrValues,
                         __global unsigned int *csrColumnIdx,
                         __global unsigned int *csrRowPtr,
 
-                        __global double *ellValues,
+                        __global float *ellValues,
                         __global unsigned int *ellColumnIdx,
 
                         int matrixSize,
                         unsigned int columnsPerRow, 
-                        double D,
-                        double oneMinusDOverN,
+                        float D,
+                        float oneMinusDOverN,
                         
-                        __global double *prevR,
-                        __global double *currR,
-                        __global double *workGroupSums,
-                        __local  double *localSquaredSums) {
+                        __global float *prevR,
+                        __global float *currR,
+                        __global float *workGroupSums,
+                        __local  float *localSquaredSums) {
 
 
     int lid = get_local_id(0);
     int gid = get_global_id(0);
 
-    double diff = 0.0;
+    float diff = 0.0;
 
     if (gid < matrixSize) {
         // ELL
-        double newCurrR = 0.0;
+        float newCurrR = 0.0;
         long effectiveIndex;
         unsigned int column;
 
