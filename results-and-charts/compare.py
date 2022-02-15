@@ -4,7 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import Akima1DInterpolator
 
-data_folder = "opencl-uk-2002"
+#data_folder = "opencl-uk-2002"
+data_folder = "opencl-web-google"
 
 COLUMN = 5
 labels_list = ["Število iteracij", "Sortiranje", "Branje",
@@ -13,7 +14,7 @@ labels_list = ["Število iteracij", "Sortiranje", "Branje",
                 "Čas paralelnih sekcij", 
                 "Skupni čas"]
 
-
+fig, ax = plt.subplots()
 def print_help():
     print("Skripta za izpis povprecnih casov")
     print("Vzame dva obvezna parametra:\n")
@@ -69,7 +70,7 @@ data = np.loadtxt(file_name, delimiter=",")
 povprecja.append(np.average(data[:, COLUMN]))
     
 COLUMN = 7    
-data_folder = "openmp-double-prec"
+data_folder = "openmp-ggl-8"
 
 file_name = f"{data_folder}/coo_64-{32}.txt"
 data = np.loadtxt(file_name, delimiter=",")
@@ -80,13 +81,14 @@ naslovi = ['opencl', 'openmp']
 
 iks = [0,1.8]
 plt.xticks(iks, naslovi)
-plt.title('Primerjava opencl in openmp, double, 1e-15')
+plt.title('Primerjava opencl in openmp, double, 1e-8')
+ax.set_ylabel('Čas izvajanja')
 
 #plt.xticks(r+w,['CSR_8', 'CSR_15', 'Hybrid_8','Hybrid_15','Hybrid2x_8','Hybrid2x_15','Hybrid4x_8','Hybrid4x_15',])
 #plt.legend( (bar1, bar2, bar3), ('Player1', 'Player2', 'Player3') )
 w=0.9
-bar1 = plt.bar(r, povprecja, w)
-bar2 =plt.bar(r+w+w, povprecja2, w)
+bar1 = ax.bar(r, povprecja, w)
+bar2 =ax.bar(r+w+w, povprecja2, w)
 
 
 
